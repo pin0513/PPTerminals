@@ -248,11 +248,37 @@ export function usePty(
     let lastOutputChunk = '';
     let parseBuffer = '';
     let parseTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let outputBurstCount = 0;
+
+    // Smart resize: when streaming output stops for 800ms, trigger a
+    // micro-resize (cols-1 → cols) to force Claude Code to clean-redraw.
+    // Only triggers if there was a significant burst of output (>20 chunks).
+    const scheduleIdleResize = () => {
+      outputBurstCount++;
+      if (idleResizeTimer) clearTimeout(idleResizeTimer);
+      idleResizeTimer = setTimeout(() => {
+        // Output has been idle for 800ms after a burst
+        const hasClaudeSession = useDashboardStore.getState().claudeSessions.has(tabId);
+        if (hasClaudeSession && outputBurstCount > 20 && terminalRef.current) {
+          const { cols, rows } = terminalRef.current;
+          // Micro-resize: cols-1 then restore — triggers SIGWINCH for clean redraw
+          invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+          setTimeout(() => {
+            invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+          }, 80);
+        }
+        outputBurstCount = 0;
+      }, 800);
+    };
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
         terminal.write(event.payload.data);
         lastOutputChunk = event.payload.data;
+
+        // Smart idle resize for Claude Code streaming
+        scheduleIdleResize();
 
         // Parse Claude Code output — debounced to handle streaming
         parseBuffer += event.payload.data;
@@ -263,6 +289,7 @@ export function usePty(
           const newSz = useDashboardStore.getState().claudeSessions.size;
           parseBuffer = '';
 
+          // New session detected → SIGWINCH after welcome screen
           if (newSz > prevSz) {
             setTimeout(() => {
               if (fitAddonRef.current && terminalRef.current) {
@@ -273,7 +300,7 @@ export function usePty(
               }
             }, 1500);
           }
-        }, 300); // Batch 300ms of streaming output
+        }, 300);
 
         // Debounced prompt detection: if output stops for 100ms and last chunk looks like a prompt
         if (promptTimer) clearTimeout(promptTimer);
@@ -326,6 +353,7 @@ export function usePty(
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
       if (promptTimer) clearTimeout(promptTimer);
       if (parseTimer) clearTimeout(parseTimer);
+      if (idleResizeTimer) clearTimeout(idleResizeTimer);
       clearInterval(periodicSync);
       onDataDisposable.dispose();
       disposeFileLinks();
