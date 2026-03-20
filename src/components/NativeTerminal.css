@@ -1,0 +1,55 @@
+.native-terminal {
+  flex: 1;
+  overflow: hidden;
+  background: #0a0e14;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  flex-direction: column;
+}
+
+.native-term-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.native-term-grid {
+  flex: 1;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', 'Menlo', 'Cascadia Code', monospace;
+  font-size: 14px;
+  line-height: 19px;
+  padding: 2px;
+  cursor: text;
+}
+
+.native-term-row {
+  white-space: pre;
+  height: 19px;
+}
+
+.tc {
+  display: inline;
+}
+
+.tc.b { font-weight: bold; }
+.tc.i { font-style: italic; }
+.tc.u { text-decoration: underline; }
+.tc.d { opacity: 0.6; }
+
+.tc.cursor {
+  background: #58a6ff !important;
+  color: #0a0e14 !important;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { background: transparent; color: inherit; }
+}
+
+.native-terminal.drag-over {
+  outline: 2px solid #58a6ff;
+  outline-offset: -2px;
+}

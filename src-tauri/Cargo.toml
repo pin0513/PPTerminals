@@ -25,4 +25,5 @@ which = "7"
 parking_lot = "0.12"
 dirs = "6"
 open = "5"
+vt100 = "0.16.2"
 

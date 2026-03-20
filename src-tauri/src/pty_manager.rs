@@ -30,6 +30,7 @@ impl PtyManager {
         shell: Option<String>,
         cwd: Option<&str>,
         app: AppHandle,
+        native_term: Option<Arc<crate::native_term::NativeTermManager>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let pty_system = native_pty_system();
 
@@ -59,12 +60,13 @@ impl PtyManager {
         let tab_id_owned = tab_id.to_string();
 
         // Spawn reader thread to stream output to frontend
+        let nt = native_term;
+        let tid = tab_id.to_string();
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
-                        // EOF - process exited
                         active_clone.store(false, std::sync::atomic::Ordering::SeqCst);
                         let _ = app.emit(
                             &format!("pty:exited:{}", tab_id_owned),
@@ -76,6 +78,11 @@ impl PtyManager {
                         break;
                     }
                     Ok(n) => {
+                        // Feed to native terminal emulator
+                        if let Some(ref ntm) = nt {
+                            ntm.process(&tid, &buf[..n]);
+                        }
+
                         let data = String::from_utf8_lossy(&buf[..n]).to_string();
                         let _ = app.emit(
                             &format!("pty:output:{}", tab_id_owned),

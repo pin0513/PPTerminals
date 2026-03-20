@@ -1,6 +1,8 @@
 mod fs_commands;
+mod native_term;
 mod pty_manager;
 
+use native_term::{NativeTermManager, ScreenState};
 use pty_manager::PtyManager;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -20,6 +22,7 @@ pub struct PtyExited {
 
 pub struct AppState {
     pub pty_manager: Arc<PtyManager>,
+    pub native_term: Arc<NativeTermManager>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -38,9 +41,12 @@ async fn pty_create(
     let resolved_cwd = cwd
         .or_else(|| dirs::home_dir().map(|p| p.to_string_lossy().to_string()))
         .unwrap_or_else(|| "/".to_string());
+    // Create native terminal emulator for this tab
+    state.native_term.create(&tab_id, 80, 24);
+
     state
         .pty_manager
-        .create_session(&tab_id, None, Some(&resolved_cwd), app)
+        .create_session(&tab_id, None, Some(&resolved_cwd), app, Some(state.native_term.clone()))
         .map_err(|e| e.to_string())?;
     Ok(PtyCreateResult {
         tab_id,
@@ -277,6 +283,36 @@ fn parse_subcommand_line(line: &str) -> Option<HelpCompletion> {
 }
 
 #[tauri::command]
+async fn native_term_create(
+    state: State<'_, AppState>,
+    tab_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    state.native_term.create(&tab_id, cols, rows);
+    Ok(())
+}
+
+#[tauri::command]
+async fn native_term_resize(
+    state: State<'_, AppState>,
+    tab_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    state.native_term.resize(&tab_id, cols, rows);
+    Ok(())
+}
+
+#[tauri::command]
+async fn native_term_screen(
+    state: State<'_, AppState>,
+    tab_id: String,
+) -> Result<ScreenState, String> {
+    state.native_term.get_screen(&tab_id).ok_or_else(|| "No terminal found".to_string())
+}
+
+#[tauri::command]
 async fn cmd_list_path_commands() -> Result<Vec<String>, String> {
     use std::collections::BTreeSet;
 
@@ -332,6 +368,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             pty_manager: Arc::new(PtyManager::new()),
+            native_term: Arc::new(NativeTermManager::new()),
         })
         .invoke_handler(tauri::generate_handler![
             pty_create,
@@ -352,6 +389,9 @@ pub fn run() {
             fs_commands::fs_scan_ecosystem,
             cmd_get_help,
             cmd_list_path_commands,
+            native_term_create,
+            native_term_resize,
+            native_term_screen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

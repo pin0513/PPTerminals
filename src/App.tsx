@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { MenuBar } from './components/MenuBar';
 import { TabBar } from './components/TabBar';
-import { TerminalView } from './components/TerminalView';
+import { NativeTerminal } from './components/NativeTerminal';
 import { StatusBar } from './components/StatusBar';
 import { Explorer } from './components/Explorer';
 import { AgentPanel } from './components/AgentPanel';
@@ -187,7 +187,7 @@ function App() {
         <div className="terminal-area">
           <div className="terminal-panels">
             {tabs.map((tab) => (
-              <TerminalView
+              <NativeTerminal
                 key={tab.id}
                 tabId={tab.id}
                 isVisible={tab.id === activeTabId}
