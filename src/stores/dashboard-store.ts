@@ -177,20 +177,25 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
       set((s) => {
         const sessions = new Map(s.sessions);
         const session = sessions.get(tabId) || {
-          tabId,
-          inputTokens: 0,
-          outputTokens: 0,
-          requests: 0,
-          startedAt: Date.now(),
-          lastActivity: Date.now(),
-          subAgents: 0,
+          tabId, inputTokens: 0, outputTokens: 0,
+          requests: 0, startedAt: Date.now(), lastActivity: Date.now(), subAgents: 0,
         };
         session.outputTokens += tokens;
         session.lastActivity = Date.now();
         sessions.set(tabId, session);
+
+        // Also update claudeSessions usage
+        const claudeSessions = new Map(s.claudeSessions);
+        const cs = claudeSessions.get(tabId);
+        if (cs) {
+          cs.usage.outputTokens += tokens;
+          cs.usage.lastActivity = Date.now();
+          claudeSessions.set(tabId, { ...cs });
+        }
+
         const totalOutput = s.totalOutputTokens + tokens;
         saveUsage(s.totalInputTokens, totalOutput, s.totalRequests);
-        return { sessions, totalOutputTokens: totalOutput };
+        return { sessions, claudeSessions, totalOutputTokens: totalOutput };
       });
     },
 
@@ -220,20 +225,23 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
       set((s) => {
         const sessions = new Map(s.sessions);
         const session = sessions.get(tabId) || {
-          tabId,
-          inputTokens: 0,
-          outputTokens: 0,
-          requests: 0,
-          startedAt: Date.now(),
-          lastActivity: Date.now(),
-          subAgents: 0,
+          tabId, inputTokens: 0, outputTokens: 0,
+          requests: 0, startedAt: Date.now(), lastActivity: Date.now(), subAgents: 0,
         };
         session.requests += 1;
         session.lastActivity = Date.now();
         sessions.set(tabId, session);
+
+        const claudeSessions = new Map(s.claudeSessions);
+        const cs = claudeSessions.get(tabId);
+        if (cs) {
+          cs.usage.requests += 1;
+          claudeSessions.set(tabId, { ...cs });
+        }
+
         const totalReqs = s.totalRequests + 1;
         saveUsage(s.totalInputTokens, s.totalOutputTokens, totalReqs);
-        return { sessions, totalRequests: totalReqs };
+        return { sessions, claudeSessions, totalRequests: totalReqs };
       });
     },
 

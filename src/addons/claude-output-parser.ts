@@ -96,6 +96,14 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     }
   }
 
+  // If we see agent patterns but haven't detected startup yet, auto-start
+  if (!state.claudeStarted && RUNNING_AGENTS_RE.test(clean)) {
+    state.claudeStarted = true;
+    state.lastModel = 'Claude';
+    store.startClaudeSession(tabId, 'Claude', '');
+    console.log(`[PPT] Auto-started Claude session from agent output (tab ${tabId})`);
+  }
+
   if (!state.claudeStarted) return;
 
   // ─── Sub-agents count: "Running 3 agents..." ───
@@ -107,20 +115,26 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     _onStateChange?.(tabId);
   }
 
-  // ─── Detect agents completed: Claude Code shows `>` prompt again ───
-  // When we see the `>` prompt and sub-agents were running, they're done
+  // ─── Detect agents completed ───
   const session = store.claudeSessions.get(tabId);
   if (session && session.subAgents > 0) {
-    // Claude Code's input prompt: `❯` or `>` at start of a line
-    const hasPrompt = /^[❯>]\s/m.test(clean);
-    if (hasPrompt) {
-      console.log(`[PPT] Sub-agents completed for tab ${tabId}`);
+    // Multiple ways to detect completion:
+    // 1. Claude Code's `>` or `❯` prompt returns
+    // 2. "Done" appears in output
+    // 3. No more "Running N agents" after agents were active
+    const hasPrompt = /[❯>]\s*$/m.test(clean) || /^\s*[❯>]/m.test(clean);
+    const hasDoneAll = /Done/i.test(clean) && !/Running\s+\d+\s+agents/i.test(clean);
+
+    if (hasPrompt || hasDoneAll) {
+      console.log(`[PPT] Sub-agents completed for tab ${tabId} (prompt=${hasPrompt} done=${hasDoneAll})`);
+      // Mark all running sub-agents as done
+      session.subAgentDetails.forEach((a) => {
+        if (a.status === 'running') {
+          store.updateSubAgentInfo(tabId, a.name, { status: 'done' });
+        }
+      });
       store.setSubAgentCount(tabId, 0);
       _onStateChange?.(tabId);
-      // Mark all sub-agent details as done
-      session.subAgentDetails.forEach((a) => {
-        store.updateSubAgentInfo(tabId, a.name, { status: 'done' });
-      });
     }
   }
 
@@ -149,8 +163,8 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
       }
     }
 
-    // "Done" on its own line after a sub-agent → mark last agent as done
-    if (/^\s*[└├]?\s*Done\s*$/.test(trimmed)) {
+    // "Done" anywhere in a tree line → mark last running agent as done
+    if (/Done/i.test(trimmed) && /[└├│]/.test(trimmed)) {
       const session = store.claudeSessions.get(tabId);
       if (session && session.subAgentDetails.length > 0) {
         const lastRunning = [...session.subAgentDetails].reverse().find((a) => a.status === 'running');
