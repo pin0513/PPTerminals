@@ -39,8 +39,9 @@ function hashColor(str: string): string {
 }
 
 function formatCost(tokens: number): string {
+  if (tokens <= 0) return '';
   const cost = (tokens / 1_000_000) * 15;
-  if (cost < 0.001) return '';
+  if (cost < 0.001) return `${tokens}t`;
   if (cost < 0.01) return `$${cost.toFixed(3)}`;
   return `$${cost.toFixed(2)}`;
 }

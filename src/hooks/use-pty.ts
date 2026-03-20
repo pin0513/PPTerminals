@@ -252,8 +252,15 @@ export function usePty(
         terminal.write(event.payload.data);
         lastOutputChunk = event.payload.data;
 
+        // Track ALL output as tokens when Claude session is active
+        const dashState = useDashboardStore.getState();
+        const hasActiveSession = dashState.claudeSessions.has(tabId);
+        if (hasActiveSession) {
+          dashState.trackOutput(tabId, event.payload.data.length);
+        }
+
         // Parse Claude Code output for agent/token tracking
-        const prevSessions = useDashboardStore.getState().claudeSessions.size;
+        const prevSessions = dashState.claudeSessions.size;
         parseClaudeOutput(tabId, event.payload.data);
         const newSessions = useDashboardStore.getState().claudeSessions.size;
 
