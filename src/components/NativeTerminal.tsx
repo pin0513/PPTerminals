@@ -15,6 +15,8 @@ interface TermCell {
   italic: boolean;
   underline: boolean;
   dim: boolean;
+  wide: boolean;
+  skip: boolean;
 }
 
 interface ScreenState {
@@ -257,20 +259,23 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
       <div ref={containerRef} className="native-term-grid">
         {screen && screen.rows.map((row, r) => (
           <div key={r} className="native-term-row">
-            {row.map((cell, c) => (
-              <span
-                key={c}
-                className={`tc${cell.bold ? ' b' : ''}${cell.italic ? ' i' : ''}${cell.underline ? ' u' : ''}${cell.dim ? ' d' : ''}${
-                  screen.cursor_visible && r === screen.cursor_row && c === screen.cursor_col ? ' cursor' : ''
-                }`}
-                style={{
-                  color: cell.fg,
-                  backgroundColor: cell.bg !== 'transparent' ? cell.bg : undefined,
-                }}
-              >
-                {cell.ch}
-              </span>
-            ))}
+            {row.map((cell, c) => {
+              if (cell.skip) return null; // wide char continuation — skip
+              return (
+                <span
+                  key={c}
+                  className={`tc${cell.bold ? ' b' : ''}${cell.italic ? ' i' : ''}${cell.underline ? ' u' : ''}${cell.dim ? ' d' : ''}${cell.wide ? ' w' : ''}${
+                    screen.cursor_visible && r === screen.cursor_row && c === screen.cursor_col ? ' cursor' : ''
+                  }`}
+                  style={{
+                    color: cell.fg,
+                    backgroundColor: cell.bg !== 'transparent' ? cell.bg : undefined,
+                  }}
+                >
+                  {cell.ch}
+                </span>
+              );
+            })}
           </div>
         ))}
       </div>

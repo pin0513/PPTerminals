@@ -38,6 +38,7 @@
 .tc.i { font-style: italic; }
 .tc.u { text-decoration: underline; }
 .tc.d { opacity: 0.6; }
+.tc.w { display: inline-block; width: 16.8px; } /* double-width: 2 * charW */
 
 .tc.cursor {
   background: #58a6ff !important;

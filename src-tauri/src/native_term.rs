@@ -7,12 +7,14 @@ use std::sync::Arc;
 #[derive(Serialize, Clone, Debug)]
 pub struct TermCell {
     pub ch: String,
-    pub fg: String,    // CSS color
-    pub bg: String,    // CSS color
+    pub fg: String,
+    pub bg: String,
     pub bold: bool,
     pub italic: bool,
     pub underline: bool,
     pub dim: bool,
+    pub wide: bool,  // true = double-width character (CJK, emoji)
+    pub skip: bool,  // true = continuation of a wide char (don't render)
 }
 
 /// Complete screen state sent to frontend
@@ -117,14 +119,18 @@ impl NativeTermManager {
                 match cell {
                     Some(cell) => {
                         let ch = cell.contents();
+                        let is_wide = cell.is_wide();
+                        let is_continuation = cell.is_wide_continuation();
                         row.push(TermCell {
-                            ch: if ch.is_empty() { " ".to_string() } else { ch.to_string() },
+                            ch: if is_continuation { String::new() } else if ch.is_empty() { " ".to_string() } else { ch.to_string() },
                             fg: color_to_css(cell.fgcolor(), true),
                             bg: color_to_css(cell.bgcolor(), false),
                             bold: cell.bold(),
                             italic: cell.italic(),
                             underline: cell.underline(),
                             dim: cell.dim(),
+                            wide: is_wide,
+                            skip: is_continuation,
                         });
                     }
                     None => {
@@ -132,10 +138,8 @@ impl NativeTermManager {
                             ch: " ".to_string(),
                             fg: "#e6e6e6".to_string(),
                             bg: "transparent".to_string(),
-                            bold: false,
-                            italic: false,
-                            underline: false,
-                            dim: false,
+                            bold: false, italic: false, underline: false, dim: false,
+                            wide: false, skip: false,
                         });
                     }
                 }
@@ -173,27 +177,25 @@ impl NativeTermManager {
 
             for c in 0..cols {
                 let cell = screen.cell(r, c);
-                let (ch, fg, bg, bold, italic, underline, dim) = match cell {
+                let (ch, fg, bg, bold, italic, underline, dim, wide, skip) = match cell {
                     Some(cell) => {
-                        let ch = cell.contents();
+                        let contents = cell.contents();
+                        let is_wide = cell.is_wide();
+                        let is_cont = cell.is_wide_continuation();
                         (
-                            if ch.is_empty() { " " } else { ch },
+                            if is_cont { String::new() } else if contents.is_empty() { " ".to_string() } else { contents.to_string() },
                             color_to_css(cell.fgcolor(), true),
                             color_to_css(cell.bgcolor(), false),
-                            cell.bold(),
-                            cell.italic(),
-                            cell.underline(),
-                            cell.dim(),
+                            cell.bold(), cell.italic(), cell.underline(), cell.dim(),
+                            is_wide, is_cont,
                         )
                     }
-                    None => (" ", "#e6e6e6".to_string(), "transparent".to_string(), false, false, false, false),
+                    None => (" ".to_string(), "#e6e6e6".to_string(), "transparent".to_string(), false, false, false, false, false, false),
                 };
 
-                // Simple hash for diff: content + fg color
                 row_hash.push(format!("{}|{}", ch, fg));
                 row_cells.push(TermCell {
-                    ch: ch.to_string(),
-                    fg, bg, bold, italic, underline, dim,
+                    ch, fg, bg, bold, italic, underline, dim, wide, skip,
                 });
             }
 
