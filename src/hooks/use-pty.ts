@@ -251,34 +251,35 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
     let outputBurstCount = 0;
 
-    // Smart resize: after any streaming pause (400ms no output), trigger
-    // micro-resize to clean up TUI rendering artifacts.
-    // Only when Claude session is active and output had cursor movement chars.
-    let lastOutputHadCursor = false;
-
+    // Force refresh: after streaming pauses, directly refresh xterm display.
+    // This clears any TUI rendering artifacts without relying on SIGWINCH.
     const scheduleIdleResize = () => {
       outputBurstCount++;
-      // Check if this chunk contains cursor movement (TUI redraw indicator)
-      if (lastOutputChunk.includes('\r') || lastOutputChunk.includes('\x1b[')) {
-        lastOutputHadCursor = true;
-      }
-
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
-        const hasClaudeSession = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (hasClaudeSession && lastOutputHadCursor && outputBurstCount > 5 && terminalRef.current) {
-          const { cols, rows } = terminalRef.current;
-          invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-          setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 50);
+        if (outputBurstCount > 3 && terminalRef.current) {
+          // Direct xterm refresh — redraws all visible rows
+          const term = terminalRef.current;
+          term.refresh(0, term.rows - 1);
         }
         outputBurstCount = 0;
-        lastOutputHadCursor = false;
-      }, 400);
+      }, 300);
     };
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
-        terminal.write(event.payload.data);
+        let data = event.payload.data;
+
+        // Fix TUI remnants: when Claude session is active and output contains
+        // carriage return (\r) without newline, inject "clear to end of line"
+        // (\x1b[K) to prevent old content from persisting.
+        const hasClaudeActive = useDashboardStore.getState().claudeSessions.has(tabId);
+        if (hasClaudeActive && data.includes('\r')) {
+          // Replace \r (not followed by \n) with \r\x1b[K (CR + clear EOL)
+          data = data.replace(/\r(?!\n)/g, '\r\x1b[K');
+        }
+
+        terminal.write(data);
         lastOutputChunk = event.payload.data;
 
         // Smart idle resize for Claude Code streaming
