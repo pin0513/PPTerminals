@@ -1,0 +1,297 @@
+/* ─── Dashboard Overlay ─── */
+.dashboard-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2500;
+}
+
+.dashboard {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #21262d;
+}
+
+.dash-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e6edf3;
+}
+
+.dash-close {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dash-close:hover {
+  background: #21262d;
+  color: #e6edf3;
+}
+
+/* ─── Sections ─── */
+.dash-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #161b22;
+}
+
+.dash-section:last-child {
+  border-bottom: none;
+}
+
+.dash-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+  margin-bottom: 10px;
+}
+
+/* ─── Cost Cards ─── */
+.dash-cost-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.cost-card {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cost-label {
+  font-size: 10px;
+  color: #484f58;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cost-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e6edf3;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cost-total {
+  color: #d29922;
+}
+
+.cost-tokens {
+  font-size: 10px;
+  color: #484f58;
+}
+
+/* ─── Agent Village ─── */
+.agent-village {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  min-height: 60px;
+}
+
+.village-agent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.village-clone {
+  position: absolute;
+  animation: clone-slide-in 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.village-clone:nth-child(2) { left: 14px; top: -2px; }
+.village-clone:nth-child(3) { left: 22px; top: -4px; }
+.village-clone:nth-child(4) { left: 30px; top: -2px; }
+
+@keyframes clone-slide-in {
+  0% { opacity: 0; transform: scale(0.3); }
+  100% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.village-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8b949e;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.village-status {
+  font-size: 9px;
+  height: 12px;
+}
+
+.village-idle { color: #484f58; }
+.village-working { color: #3fb950; }
+.village-cloning { color: #bc8cff; }
+.village-done { color: #3fb950; }
+
+.village-empty {
+  color: #484f58;
+  font-size: 12px;
+  width: 100%;
+  text-align: center;
+  padding: 8px;
+}
+
+/* ─── Pixel Agent (8-bit character) ─── */
+.pixel-agent {
+  width: 16px;
+  height: 24px;
+  position: relative;
+  image-rendering: pixelated;
+}
+
+.pixel-head {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.pixel-body {
+  width: 10px;
+  height: 8px;
+  border-radius: 1px;
+  margin: 1px auto 0;
+}
+
+.pixel-legs {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 1px;
+}
+
+.pixel-leg {
+  width: 3px;
+  height: 5px;
+  border-radius: 0 0 1px 1px;
+}
+
+/* ─── Pixel States ─── */
+
+/* Idle — grey, sleeping */
+.pixel-idle .pixel-head { background: #484f58; }
+.pixel-idle .pixel-body { background: #30363d; }
+.pixel-idle .pixel-leg  { background: #30363d; }
+
+/* Working — green, bouncing */
+.pixel-working .pixel-head { background: #3fb950; }
+.pixel-working .pixel-body { background: #238636; }
+.pixel-working .pixel-leg  { background: #238636; }
+.pixel-working {
+  animation: pixel-work 0.5s ease-in-out infinite alternate;
+}
+
+.pixel-working .pixel-leg.left {
+  animation: pixel-step-l 0.4s ease-in-out infinite alternate;
+}
+
+.pixel-working .pixel-leg.right {
+  animation: pixel-step-r 0.4s ease-in-out infinite alternate;
+}
+
+/* Cloning — purple glow, main agent */
+.pixel-cloning .pixel-head { background: #bc8cff; }
+.pixel-cloning .pixel-body { background: #8b5cf6; }
+.pixel-cloning .pixel-leg  { background: #8b5cf6; }
+.pixel-cloning {
+  animation: pixel-work 0.4s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 3px rgba(188, 140, 255, 0.5));
+}
+
+/* Clone — semi-transparent purple */
+.pixel-clone .pixel-head { background: rgba(188, 140, 255, 0.5); }
+.pixel-clone .pixel-body { background: rgba(139, 92, 246, 0.4); }
+.pixel-clone .pixel-leg  { background: rgba(139, 92, 246, 0.4); }
+.pixel-clone {
+  animation: pixel-work 0.5s ease-in-out infinite alternate;
+}
+
+/* Done — green with checkmark feel */
+.pixel-done .pixel-head { background: #3fb950; }
+.pixel-done .pixel-body { background: #238636; }
+.pixel-done .pixel-leg  { background: #238636; }
+
+@keyframes pixel-work {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2px); }
+}
+
+@keyframes pixel-step-l {
+  0% { height: 5px; }
+  100% { height: 3px; }
+}
+
+@keyframes pixel-step-r {
+  0% { height: 3px; }
+  100% { height: 5px; }
+}
+
+/* ─── Session Table ─── */
+.dash-table {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.dash-table-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 60px 40px 70px;
+  gap: 8px;
+  padding: 4px 0;
+  color: #484f58;
+  font-weight: 600;
+  border-bottom: 1px solid #21262d;
+}
+
+.dash-table-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 60px 40px 70px;
+  gap: 8px;
+  padding: 6px 0;
+  color: #8b949e;
+  border-bottom: 1px solid #161b22;
+}
+
+.dash-table-row:hover {
+  color: #e6edf3;
+}
+
+.dash-cell-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e6edf3;
+}

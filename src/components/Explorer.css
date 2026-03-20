@@ -1,0 +1,272 @@
+.explorer {
+  display: flex;
+  flex-direction: column;
+  background: #131820;
+  border-right: 1px solid #21262d;
+  overflow: hidden;
+  user-select: none;
+  min-width: 180px;
+}
+
+.explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid #21262d;
+  gap: 2px;
+}
+
+.explorer-toolbar-icons {
+  display: flex;
+  gap: 2px;
+}
+
+.explorer-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.explorer-icon-btn:hover {
+  background: #1e2a3a;
+  color: #e6e6e6;
+}
+
+.explorer-icon-btn.active {
+  color: #e6e6e6;
+}
+
+.explorer-icon-btn.small {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+
+.close-btn {
+  font-size: 18px;
+}
+
+.explorer-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid #21262d;
+  gap: 8px;
+}
+
+.explorer-title {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.explorer-tree::-webkit-scrollbar {
+  width: 6px;
+}
+
+.explorer-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.explorer-tree::-webkit-scrollbar-thumb {
+  background: #484f58;
+  border-radius: 3px;
+}
+
+.explorer-tree::-webkit-scrollbar-thumb:hover {
+  background: #8b949e;
+}
+
+/* Tree Item */
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding-right: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #e6e6e6;
+  white-space: nowrap;
+  transition: background 0.05s;
+}
+
+.tree-item:hover {
+  background: #1e2a3a;
+}
+
+.tree-item.dir {
+  font-weight: 500;
+}
+
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-name.hidden-entry {
+  color: #484f58;
+}
+
+.tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  font-size: 14px;
+  color: #8b949e;
+  transition: transform 0.1s;
+  flex-shrink: 0;
+}
+
+.tree-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.tree-chevron-spacer {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+/* Toolbar right section */
+.explorer-toolbar-right {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+/* Header actions */
+.explorer-header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* Create input */
+.tree-item-create {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding-right: 8px;
+}
+
+.tree-create-input {
+  flex: 1;
+  background: #0d1117;
+  border: 1px solid #58a6ff;
+  border-radius: 3px;
+  color: #e6e6e6;
+  font-size: 13px;
+  padding: 1px 6px;
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+}
+
+/* Context Menu */
+.explorer-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.explorer-context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #e6edf3;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.explorer-context-menu button:hover {
+  background: #264f78;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: #30363d;
+  margin: 4px 0;
+}
+
+/* Explorer Footer */
+.explorer-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid #21262d;
+  color: #484f58;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.explorer-footer-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Dragging from tree item */
+.tree-item[draggable] {
+  cursor: grab;
+}
+
+.tree-item[draggable]:active {
+  cursor: grabbing;
+}
+
+/* Resize handle */
+.sidebar-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.dragging {
+  background: #58a6ff;
+}

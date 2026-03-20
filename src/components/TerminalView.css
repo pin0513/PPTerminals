@@ -1,0 +1,79 @@
+.terminal-view {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: #0a0e14;
+  /* Absolutely critical: prevent xterm from overflowing */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.terminal-container {
+  flex: 1;
+  padding: 4px 0 0 8px;
+  overflow: hidden;
+}
+
+/* Force xterm to respect container bounds */
+.terminal-container .xterm {
+  height: 100%;
+  width: 100%;
+}
+
+.terminal-container .xterm-screen {
+  width: 100% !important;
+}
+
+.terminal-container .xterm-viewport {
+  overflow-y: auto !important;
+  width: 100% !important;
+}
+
+.terminal-container .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-container .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background: #484f58;
+  border-radius: 4px;
+}
+
+.terminal-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #8b949e;
+}
+
+/* Drag & Drop overlay */
+.terminal-view.drag-over {
+  outline: 2px solid #58a6ff;
+  outline-offset: -2px;
+}
+
+.terminal-drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(88, 166, 255, 0.08);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.terminal-drop-overlay span {
+  background: #1c2128;
+  border: 1px solid #58a6ff;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #58a6ff;
+}

@@ -1,0 +1,62 @@
+.status-bar {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  background: #131820;
+  border-top: 1px solid #21262d;
+  font-size: 11px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #8b949e;
+  user-select: none;
+  gap: 4px;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s;
+}
+
+.status-btn:hover {
+  background: #1e2a3a;
+  color: #e6e6e6;
+}
+
+.status-btn.active {
+  color: #58a6ff;
+}
+
+.status-item {
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+.status-tab-count {
+  color: #484f58;
+}
+
+.status-cost {
+  width: auto;
+  padding: 0 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cost-indicator {
+  font-size: 10px;
+  color: #d29922;
+}

@@ -1,0 +1,394 @@
+/* ─── File Viewer Panel ─── */
+.fileviewer {
+  display: flex;
+  flex-direction: column;
+  background: #0d1117;
+  border-left: 1px solid #21262d;
+  flex-shrink: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+.fileviewer-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.fileviewer-resize-handle:hover,
+.fileviewer-resize-handle.dragging {
+  background: #58a6ff;
+}
+
+/* ─── Header ─── */
+.fileviewer-header {
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+.fileviewer-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fileviewer-filename {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileviewer-subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  gap: 4px;
+}
+
+.fileviewer-path {
+  font-size: 11px;
+  color: #484f58;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.fileviewer-path-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.fileviewer-icon-btn.small {
+  padding: 2px;
+}
+
+.fileviewer-icon-btn.small svg {
+  width: 12px;
+  height: 12px;
+}
+
+.fileviewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.fileviewer-icon-btn {
+  background: none;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fileviewer-icon-btn:hover {
+  color: #e6edf3;
+  background: #21262d;
+}
+
+/* ─── Mode Toggle ─── */
+.fileviewer-mode-toggle {
+  display: flex;
+  background: #161b22;
+  border-radius: 6px;
+  border: 1px solid #21262d;
+  overflow: hidden;
+}
+
+.mode-btn {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.mode-btn:hover {
+  color: #e6edf3;
+}
+
+.mode-btn.active {
+  background: #21262d;
+  color: #e6edf3;
+}
+
+/* ─── Content ─── */
+.fileviewer-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.fileviewer-loading,
+.fileviewer-error,
+.fileviewer-binary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #484f58;
+  font-size: 13px;
+}
+
+.fileviewer-error {
+  color: #f85149;
+}
+
+/* ─── Rendered (Markdown) ─── */
+.fileviewer-rendered {
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e6edf3;
+}
+
+.fileviewer-markdown h1 {
+  font-size: 1.8em;
+  font-weight: 600;
+  margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #21262d;
+}
+
+.fileviewer-markdown h2 {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 24px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #21262d;
+}
+
+.fileviewer-markdown h3 {
+  font-size: 1.15em;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.fileviewer-markdown h4, .fileviewer-markdown h5, .fileviewer-markdown h6 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 16px 0 6px;
+}
+
+.fileviewer-markdown p {
+  margin: 0 0 12px;
+}
+
+.fileviewer-markdown ul, .fileviewer-markdown ol {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+
+.fileviewer-markdown li {
+  margin: 2px 0;
+}
+
+.fileviewer-markdown code {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+  color: #f0883e;
+}
+
+.fileviewer-markdown pre {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.fileviewer-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: #e6edf3;
+}
+
+.fileviewer-markdown blockquote {
+  border-left: 3px solid #3b82f6;
+  padding: 4px 16px;
+  margin: 0 0 12px;
+  color: #8b949e;
+  background: #161b2208;
+}
+
+.fileviewer-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 12px;
+}
+
+.fileviewer-markdown th,
+.fileviewer-markdown td {
+  border: 1px solid #21262d;
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.fileviewer-markdown th {
+  background: #161b22;
+  font-weight: 600;
+}
+
+.fileviewer-markdown a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.fileviewer-markdown a:hover {
+  text-decoration: underline;
+}
+
+.fileviewer-markdown hr {
+  border: none;
+  border-top: 1px solid #21262d;
+  margin: 16px 0;
+}
+
+.fileviewer-markdown img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+/* ─── Raw View ─── */
+.fileviewer-raw {
+  overflow: auto;
+  height: 100%;
+}
+
+.fileviewer-raw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.fileviewer-raw-table td {
+  vertical-align: top;
+}
+
+.fileviewer-raw-table .line-number {
+  width: 1px;
+  white-space: nowrap;
+  padding: 0 12px;
+  text-align: right;
+  color: #484f58;
+  user-select: none;
+  border-right: 1px solid #21262d;
+}
+
+.fileviewer-raw-table .line-content {
+  padding: 0 12px;
+}
+
+.fileviewer-raw-table .line-content pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #e6edf3;
+  font-family: inherit;
+}
+
+.fileviewer-raw-table tr:hover {
+  background: #161b22;
+}
+
+/* ─── Editor View ─── */
+.fileviewer-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fileviewer-textarea {
+  flex: 1;
+  background: #0d1117;
+  color: #e6edf3;
+  border: none;
+  resize: none;
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  tab-size: 2;
+}
+
+.fileviewer-editor-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid #21262d;
+  background: #161b22;
+}
+
+.editor-hint {
+  font-size: 11px;
+  color: #484f58;
+}
+
+.editor-save-btn {
+  background: #238636;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.editor-save-btn:hover {
+  background: #2ea043;
+}
+
+/* ─── HTML iframe ─── */
+.fileviewer-html-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* ─── Footer ─── */
+.fileviewer-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px;
+  border-top: 1px solid #21262d;
+  font-size: 11px;
+  color: #484f58;
+  flex-shrink: 0;
+}
+
+.fileviewer-dirty {
+  color: #d29922;
+  font-weight: 500;
+}

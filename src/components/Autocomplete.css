@@ -1,0 +1,81 @@
+.autocomplete-dropdown {
+  position: fixed;
+  z-index: 1500;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 4px 0;
+  min-width: 240px;
+  max-width: 420px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+}
+
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  cursor: default;
+  transition: background 0.05s;
+  height: 28px;
+}
+
+.autocomplete-item.selected {
+  background: #264f78;
+}
+
+.ac-kind {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.ac-kind-flag {
+  color: #58a6ff;
+}
+
+.ac-kind-option {
+  color: #d29922;
+}
+
+.ac-kind-subcommand {
+  color: #3fb950;
+}
+
+.ac-name {
+  color: #e6edf3;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.autocomplete-item.selected .ac-name {
+  color: #fff;
+}
+
+.ac-desc {
+  color: #484f58;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.autocomplete-item.selected .ac-desc {
+  color: #8b949e;
+}
+
+.autocomplete-hint {
+  display: flex;
+  gap: 12px;
+  padding: 4px 10px 2px;
+  border-top: 1px solid #21262d;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #484f58;
+}

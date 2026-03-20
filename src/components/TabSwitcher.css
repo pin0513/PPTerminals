@@ -1,0 +1,119 @@
+.tab-switcher-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+  z-index: 2000;
+}
+
+.tab-switcher {
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 280px;
+  max-width: 520px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.tab-switcher-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.tab-switcher-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.tab-switcher-hint {
+  font-size: 11px;
+  color: #484f58;
+}
+
+.tab-switcher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+
+.tab-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  color: #e6edf3;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s;
+}
+
+.tab-switcher-item:hover {
+  background: #264f78;
+  border-color: #58a6ff;
+}
+
+.tab-switcher-item.current {
+  border-color: #58a6ff;
+  background: #1e2a3a;
+}
+
+.tab-switcher-item.completed {
+  border-color: #238636;
+}
+
+.tab-switcher-item.completed:hover {
+  border-color: #3fb950;
+}
+
+.switcher-hotkey {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.tab-switcher-item:hover .switcher-hotkey {
+  background: #0d1117;
+  border-color: #58a6ff;
+  color: #fff;
+}
+
+.switcher-icon {
+  display: flex;
+  align-items: center;
+  color: #8b949e;
+  flex-shrink: 0;
+}
+
+.switcher-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
