@@ -139,6 +139,35 @@ impl PtyManager {
         Ok(())
     }
 
+    /// Force SIGWINCH by doing a quick resize bounce (cols+1 → cols).
+    /// The bounce happens entirely in Rust, so no visual flicker on the frontend.
+    pub fn refresh_session(
+        &self,
+        tab_id: &str,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let sessions = self.sessions.lock();
+        let session = sessions
+            .get(tab_id)
+            .ok_or("Session not found")?;
+        // Briefly resize to cols+1
+        session.master.resize(PtySize {
+            rows,
+            cols: cols + 1,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+        // Immediately restore
+        session.master.resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+        Ok(())
+    }
+
     pub fn close_session(
         &self,
         tab_id: &str,

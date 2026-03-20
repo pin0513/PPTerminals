@@ -92,6 +92,19 @@ async fn pty_is_active(
     Ok(state.pty_manager.is_active(&tab_id))
 }
 
+#[tauri::command]
+async fn pty_refresh(
+    state: State<'_, AppState>,
+    tab_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    state
+        .pty_manager
+        .refresh_session(&tab_id, cols, rows)
+        .map_err(|e| e.to_string())
+}
+
 #[derive(Clone, Serialize, Debug)]
 pub struct SessionStatus {
     pub tab_id: String,
@@ -326,6 +339,7 @@ pub fn run() {
             pty_resize,
             pty_close,
             pty_is_active,
+            pty_refresh,
             pty_all_status,
             fs_commands::fs_list_dir,
             fs_commands::fs_get_home_dir,

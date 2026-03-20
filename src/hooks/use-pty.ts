@@ -251,17 +251,17 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // SIGWINCH after streaming: only trigger when output just stopped
-    // Only SIGWINCH after 2s of silence (conversation turn ended, not mid-stream)
+    // After output pauses, call pty_refresh which does a bounce (cols+1→cols)
+    // entirely in Rust — no visual change on xterm, but SIGWINCH forces redraw.
     const scheduleIdleResize = () => {
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
         const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
         if (hasSession && terminalRef.current) {
           const { cols, rows } = terminalRef.current;
-          invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-          setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 30);
+          invoke('pty_refresh', { tabId, cols, rows }).catch(() => {});
         }
-      }, 2000);
+      }, 500);
     };
 
     const setupListeners = async () => {
@@ -284,11 +284,9 @@ export function usePty(
           // New session detected → SIGWINCH after welcome screen
           if (newSz > prevSz) {
             setTimeout(() => {
-              if (fitAddonRef.current && terminalRef.current) {
-                fitAddonRef.current.fit();
+              if (terminalRef.current) {
                 const { cols, rows } = terminalRef.current;
-                invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-                setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 100);
+                invoke('pty_refresh', { tabId, cols, rows }).catch(() => {});
               }
             }, 1500);
           }
