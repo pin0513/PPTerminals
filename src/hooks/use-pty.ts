@@ -251,20 +251,9 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
     let outputBurstCount = 0;
 
-    // Force refresh: after streaming pauses, directly refresh xterm display.
-    // This clears any TUI rendering artifacts without relying on SIGWINCH.
-    const scheduleIdleResize = () => {
-      outputBurstCount++;
-      if (idleResizeTimer) clearTimeout(idleResizeTimer);
-      idleResizeTimer = setTimeout(() => {
-        if (outputBurstCount > 3 && terminalRef.current) {
-          // Direct xterm refresh — redraws all visible rows
-          const term = terminalRef.current;
-          term.refresh(0, term.rows - 1);
-        }
-        outputBurstCount = 0;
-      }, 300);
-    };
+    // Continuous SIGWINCH: while Claude session is active, send resize every 500ms
+    // to force clean redraw and prevent TUI artifacts.
+    const scheduleIdleResize = () => { /* noop — handled by continuous interval below */ };
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
@@ -328,20 +317,17 @@ export function usePty(
       }
     });
 
-    // Periodic size sync: check every 10s, only resize if size changed
-    let lastSyncedCols = 0;
-    let lastSyncedRows = 0;
+    // Continuous SIGWINCH while Claude session is active (every 500ms)
+    // This forces Claude Code to clean-redraw, eliminating TUI artifacts.
     const periodicSync = setInterval(() => {
-      if (fitAddonRef.current && terminalRef.current) {
-        fitAddonRef.current.fit();
+      const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
+      if (hasSession && terminalRef.current) {
         const { cols, rows } = terminalRef.current;
-        if (cols !== lastSyncedCols || rows !== lastSyncedRows) {
-          lastSyncedCols = cols;
-          lastSyncedRows = rows;
-          invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-        }
+        // Micro-resize: cols-1 then restore
+        invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+        setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 30);
       }
-    }, 10000);
+    }, 500);
 
     return () => {
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
