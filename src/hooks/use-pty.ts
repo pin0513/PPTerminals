@@ -268,18 +268,7 @@ export function usePty(
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
-        let data = event.payload.data;
-
-        // Fix TUI remnants: when Claude session is active and output contains
-        // carriage return (\r) without newline, inject "clear to end of line"
-        // (\x1b[K) to prevent old content from persisting.
-        const hasClaudeActive = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (hasClaudeActive && data.includes('\r')) {
-          // Replace \r (not followed by \n) with \r\x1b[K (CR + clear EOL)
-          data = data.replace(/\r(?!\n)/g, '\r\x1b[K');
-        }
-
-        terminal.write(data);
+        terminal.write(event.payload.data);
         lastOutputChunk = event.payload.data;
 
         // Smart idle resize for Claude Code streaming
