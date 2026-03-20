@@ -305,34 +305,27 @@ export function usePty(
     const resizeObserver = new ResizeObserver(() => debouncedFit());
     resizeObserver.observe(parentEl);
 
-    // When Claude state changes (sub-agents start/end), trigger resize
+    // When Claude state changes (sub-agents start/end), trigger resize only once
     setParserCallback((changedTabId) => {
       if (changedTabId === tabId) {
-        setTimeout(() => debouncedFit(), 200);
-        setTimeout(() => debouncedFit(), 800);
+        setTimeout(() => debouncedFit(), 500);
       }
     });
 
-    // Periodic size sync: while Claude CLI is active, re-fit every 3s
-    // This catches any drift between xterm rendering and PTY size
+    // Periodic size sync: check every 10s, only resize if size changed
     let lastSyncedCols = 0;
     let lastSyncedRows = 0;
     const periodicSync = setInterval(() => {
-      const claudeActive = useDashboardStore.getState().claudeSessions;
-      const hasActive = Array.from(claudeActive.values()).some(
-        (s) => s.tabId === tabId && s.active
-      );
-      if (hasActive && fitAddonRef.current && terminalRef.current) {
+      if (fitAddonRef.current && terminalRef.current) {
         fitAddonRef.current.fit();
         const { cols, rows } = terminalRef.current;
-        // Only send resize if size actually changed
         if (cols !== lastSyncedCols || rows !== lastSyncedRows) {
           lastSyncedCols = cols;
           lastSyncedRows = rows;
           invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
         }
       }
-    }, 3000);
+    }, 10000);
 
     return () => {
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
