@@ -74,7 +74,7 @@ export function usePty(
     const initialCwd = tab?.cwd || '/';
 
     const terminal = new Terminal({
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace",
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Apple Color Emoji', 'Segoe UI Emoji', monospace",
       fontSize: 14,
       lineHeight: 1.35,
       theme: {
@@ -251,36 +251,8 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // SIGWINCH after streaming: only trigger when output just stopped
-    // Smooth redraw: freeze display → resize → wait for redraw → unfreeze.
-    // Uses CSS opacity transition to hide the resize flicker.
-    const scheduleIdleResize = () => {
-      if (idleResizeTimer) clearTimeout(idleResizeTimer);
-      idleResizeTimer = setTimeout(() => {
-        const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (!hasSession || !terminalRef.current || !fitAddonRef.current) return;
-
-        const el = terminalRef.current.element;
-        if (!el) return;
-
-        const { cols, rows } = terminalRef.current;
-
-        // Freeze: keep current frame visible
-        el.style.transition = 'none';
-        el.style.opacity = '1';
-
-        // Do the resize in background
-        terminalRef.current.resize(Math.max(1, cols - 1), rows);
-        invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-
-        // After Claude redraws (50ms), restore and fade in smoothly
-        setTimeout(() => {
-          if (terminalRef.current) {
-            terminalRef.current.resize(cols, rows);
-            invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-          }
-        }, 50);
-      }, 1000);
-    };
+    // No auto-resize — user triggers manually with Cmd+R
+    const scheduleIdleResize = () => { /* disabled */ };
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {

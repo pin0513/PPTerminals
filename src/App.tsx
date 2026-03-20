@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { MenuBar } from './components/MenuBar';
 import { TabBar } from './components/TabBar';
 import { TerminalView } from './components/TerminalView';
@@ -117,7 +118,16 @@ function App() {
 
       // Cmd/Ctrl shortcuts
       if (e[modKey]) {
-        if (e.key === 't') {
+        if (e.key === 'r') {
+          // Cmd+R — refresh terminal (force SIGWINCH for clean redraw)
+          e.preventDefault();
+          if (activeTabId) {
+            invoke('pty_refresh', {
+              tabId: activeTabId,
+              cols: 80, rows: 24, // will be overridden by fit
+            }).catch(() => {});
+          }
+        } else if (e.key === 't') {
           e.preventDefault();
           createTab();
         } else if (e.key === 'w') {
