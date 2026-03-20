@@ -249,7 +249,6 @@ export function usePty(
     let parseBuffer = '';
     let parseTimer: ReturnType<typeof setTimeout> | null = null;
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
-    let outputBurstCount = 0;
 
     // Continuous SIGWINCH: while Claude session is active, send resize every 500ms
     // to force clean redraw and prevent TUI artifacts.
