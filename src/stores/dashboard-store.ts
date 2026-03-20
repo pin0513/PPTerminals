@@ -102,21 +102,23 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
     startClaudeSession: (tabId, model, cwd) => {
       set((s) => {
         const claudeSessions = new Map(s.claudeSessions);
-        if (!claudeSessions.has(tabId)) {
-          claudeSessions.set(tabId, {
-            tabId, model, cwd,
-            startedAt: Date.now(),
-            active: true,
-            subAgents: 0,
-            subAgentDetails: [],
-            bashCommands: [],
-            usage: {
-              tabId, inputTokens: 0, outputTokens: 0,
-              requests: 0, startedAt: Date.now(), lastActivity: Date.now(), subAgents: 0,
-            },
-          });
-        }
-        return { claudeSessions };
+        // Always reset session data for a new/restarted session
+        claudeSessions.set(tabId, {
+          tabId, model, cwd,
+          startedAt: Date.now(),
+          active: true,
+          subAgents: 0,
+          subAgentDetails: [],
+          bashCommands: [],
+          usage: {
+            tabId, inputTokens: 0, outputTokens: 0,
+            requests: 0, startedAt: Date.now(), lastActivity: Date.now(), subAgents: 0,
+          },
+        });
+        // Also reset the sessions map entry
+        const sessions = new Map(s.sessions);
+        sessions.delete(tabId);
+        return { claudeSessions, sessions };
       });
     },
 
