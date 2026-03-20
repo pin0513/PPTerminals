@@ -251,15 +251,26 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // SIGWINCH after streaming: only trigger when output just stopped
-    // After output pauses, call pty_refresh which does a bounce (cols+1→cols)
-    // entirely in Rust — no visual change on xterm, but SIGWINCH forces redraw.
+    // Full resize pipeline: xterm resize + PTY resize, same as manual window drag.
+    // Does cols→cols-1→cols in one tick — xterm reflows buffer, PTY sends SIGWINCH.
     const scheduleIdleResize = () => {
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
         const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (hasSession && terminalRef.current) {
+        if (hasSession && terminalRef.current && fitAddonRef.current) {
+          // Full resize: same path as manual window resize
+          fitAddonRef.current.fit();
           const { cols, rows } = terminalRef.current;
-          invoke('pty_refresh', { tabId, cols, rows }).catch(() => {});
+          // Bounce: shrink 1 col, then restore — triggers full reflow
+          terminalRef.current.resize(Math.max(1, cols - 1), rows);
+          invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+          // Restore immediately (next frame)
+          requestAnimationFrame(() => {
+            if (terminalRef.current) {
+              terminalRef.current.resize(cols, rows);
+              invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+            }
+          });
         }
       }, 500);
     };
@@ -283,12 +294,8 @@ export function usePty(
 
           // New session detected → SIGWINCH after welcome screen
           if (newSz > prevSz) {
-            setTimeout(() => {
-              if (terminalRef.current) {
-                const { cols, rows } = terminalRef.current;
-                invoke('pty_refresh', { tabId, cols, rows }).catch(() => {});
-              }
-            }, 1500);
+            // New Claude session — full resize after welcome screen
+            setTimeout(() => scheduleIdleResize(), 1500);
           }
         }, 300);
 
