@@ -251,17 +251,17 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // SIGWINCH after streaming: only trigger when output just stopped
+    // Only SIGWINCH after 2s of silence (conversation turn ended, not mid-stream)
     const scheduleIdleResize = () => {
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
-        // Output stopped for 500ms — do one SIGWINCH to clean up
         const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
         if (hasSession && terminalRef.current) {
           const { cols, rows } = terminalRef.current;
           invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
           setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 30);
         }
-      }, 500);
+      }, 2000);
     };
 
     const setupListeners = async () => {
