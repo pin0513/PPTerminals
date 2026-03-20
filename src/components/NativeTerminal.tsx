@@ -237,8 +237,9 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
     else if (e.key === 'PageUp') data = '\x1b[5~';
     else if (e.key === 'PageDown') data = '\x1b[6~';
     // Ctrl+letter → terminal control codes (Ctrl+C = \x03, Ctrl+D = \x04, etc.)
-    else if (e.ctrlKey && e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
-      data = String.fromCharCode(e.key.charCodeAt(0) - 96);
+    else if (e.ctrlKey && !e.metaKey && e.code && e.code.startsWith('Key')) {
+      const letter = e.code.charAt(3).toLowerCase();
+      data = String.fromCharCode(letter.charCodeAt(0) - 96);
     }
     // Regular printable
     else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
@@ -247,8 +248,10 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
 
     if (data) {
       invoke('pty_write', { tabId, data }).catch(console.error);
-      // Feed to autocomplete
       acRef.current.handleInput(data);
+    } else {
+      // Debug: log unhandled keys
+      console.log(`[KEY] Unhandled: key=${e.key} code=${e.code} ctrl=${e.ctrlKey} meta=${e.metaKey} alt=${e.altKey} shift=${e.shiftKey}`);
     }
   }, [tabId, isMac]);
 
