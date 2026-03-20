@@ -7,7 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { registerFileLinkProvider, FileLinkProvider } from '../addons/file-link-provider';
-import { parseClaudeOutput, onShellPromptDetected } from '../addons/claude-output-parser';
+import { parseClaudeOutput, onShellPromptDetected, setParserCallback } from '../addons/claude-output-parser';
 import { useFileViewerStore } from '../stores/file-viewer-store';
 import { useTabStore } from '../stores/tab-store';
 import { useDashboardStore } from '../stores/dashboard-store';
@@ -297,6 +297,14 @@ export function usePty(
     const parentEl = containerRef.current.closest('.terminal-view') || containerRef.current;
     const resizeObserver = new ResizeObserver(() => debouncedFit());
     resizeObserver.observe(parentEl);
+
+    // When Claude state changes (sub-agents start/end), trigger resize
+    setParserCallback((changedTabId) => {
+      if (changedTabId === tabId) {
+        setTimeout(() => debouncedFit(), 200);
+        setTimeout(() => debouncedFit(), 800);
+      }
+    });
 
     // Periodic size sync: while Claude CLI is active, re-fit every 3s
     // This catches any drift between xterm rendering and PTY size

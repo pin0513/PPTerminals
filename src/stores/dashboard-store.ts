@@ -19,6 +19,7 @@ export interface SessionUsage {
 export interface SubAgentInfo {
   name: string;
   toolUses: number;
+  tokens: number;
   status: 'running' | 'done';
 }
 
@@ -140,7 +141,7 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
           if (existing) {
             Object.assign(existing, info);
           } else {
-            details.push({ name, toolUses: info.toolUses || 0, status: 'running' });
+            details.push({ name, toolUses: info.toolUses || 0, tokens: info.tokens || 0, status: 'running' });
           }
           claudeSessions.set(tabId, { ...session, subAgentDetails: details });
         }

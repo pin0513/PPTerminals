@@ -130,6 +130,18 @@ export const useTabStore = create<TabStore>((set, get) => ({
     } catch {
       // Session may already be closed
     }
+    // Clean up Claude session and dashboard data
+    const { useDashboardStore } = await import('./dashboard-store');
+    const dashStore = useDashboardStore.getState();
+    dashStore.endClaudeSession(id);
+    dashStore.removeSession(id);
+    // Remove from claudeSessions map entirely
+    useDashboardStore.setState((s) => {
+      const claudeSessions = new Map(s.claudeSessions);
+      claudeSessions.delete(id);
+      return { claudeSessions };
+    });
+
     set((state) => {
       const remaining = state.tabs.filter((t) => t.id !== id);
       let newActiveId = state.activeTabId;

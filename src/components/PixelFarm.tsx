@@ -110,21 +110,22 @@ export function PixelFarm({ onClose }: { onClose: () => void }) {
         hen.label = tab?.hotkey || '?';
       }
 
-      // Sub-agent chicks
+      // Sub-agent chicks (stay visible even after done)
       session.subAgentDetails.forEach((agent, i) => {
         const chickId = `chick-${session.tabId}-${agent.name}`;
         neededIds.add(chickId);
+        const chickCost = agent.tokens > 0 ? formatCost(agent.tokens) : '';
         if (!chickens.has(chickId)) {
           const hen = chickens.get(henId)!;
           chickens.set(chickId, {
             id: chickId,
-            x: hen.x + 10 + i * 8,
+            x: hen.x + 10 + i * 12,
             y: hen.y + 8,
-            targetX: hen.x + 10 + i * 8,
+            targetX: hen.x + 10 + i * 12,
             targetY: hen.y + 8,
             color: hen.color,
-            label: '',
-            cost: '',
+            label: agent.name.slice(0, 4),
+            cost: chickCost,
             isHen: false,
             parentId: henId,
             frame: 0,
@@ -132,6 +133,10 @@ export function PixelFarm({ onClose }: { onClose: () => void }) {
             state: agent.status === 'done' ? 'idle' : 'walking',
             stateTimer: Math.random() * 60,
           });
+        } else {
+          const chick = chickens.get(chickId)!;
+          chick.cost = chickCost;
+          chick.state = agent.status === 'done' ? 'idle' : 'walking';
         }
       });
     });

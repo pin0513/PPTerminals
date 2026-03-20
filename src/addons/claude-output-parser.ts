@@ -37,7 +37,6 @@ const CLAUDE_EXIT_PATTERNS = [
 const RUNNING_AGENTS_RE = /Running\s+(\d+)\s+agents?/;
 const AGENT_TREE_LINE_RE = /[├└][─┬]\s*(.+?)(?:\s+[·•]\s*(\d+)\s+tool|\s*$)/;
 const AGENT_DONE_RE = /Done/i;
-const AGENT_INIT_RE = /Initializ/i;
 const AGENT_NAME_RE = /Agent\s*\(([^)]+)\)/;
 const BASH_TOOL_RE = /(?:Bash|bash|Read|Write|Edit|Glob|Grep)[:\s]+(.{3,80})/;
 const TOOL_USES_RE = /(\d+)\s+tool\s+uses?/;
@@ -55,6 +54,13 @@ function getState(tabId: string) {
     tabState.set(tabId, { claudeStarted: false, lastModel: '', recentOutput: '' });
   }
   return tabState.get(tabId)!;
+}
+
+// Callback for when significant state changes happen (sub-agents start/end)
+let _onStateChange: ((tabId: string) => void) | null = null;
+
+export function setParserCallback(cb: (tabId: string) => void) {
+  _onStateChange = cb;
 }
 
 export function parseClaudeOutput(tabId: string, rawData: string): void {
@@ -98,6 +104,7 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     const count = parseInt(runningMatch[1], 10);
     console.log(`[PPT] Detected ${count} sub-agents for tab ${tabId}`);
     store.setSubAgentCount(tabId, count);
+    _onStateChange?.(tabId);
   }
 
   // ─── Detect agents completed: Claude Code shows `>` prompt again ───
@@ -109,6 +116,7 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     if (hasPrompt) {
       console.log(`[PPT] Sub-agents completed for tab ${tabId}`);
       store.setSubAgentCount(tabId, 0);
+      _onStateChange?.(tabId);
       // Mark all sub-agent details as done
       session.subAgentDetails.forEach((a) => {
         store.updateSubAgentInfo(tabId, a.name, { status: 'done' });
@@ -116,7 +124,7 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     }
   }
 
-  // ─── Agent tree lines: "├─ 查台北今天天氣 · 0 tool uses" ───
+  // ─── Agent tree lines: "├─ 查台北今天天氣 · 1 tool use · 9.6k tokens" ───
   for (const line of clean.split('\n')) {
     const trimmed = line.trim();
 
@@ -125,10 +133,30 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
       const name = treeMatch[1].trim();
       const toolUses = treeMatch[2] ? parseInt(treeMatch[2], 10) : 0;
       if (name.length > 1 && name.length < 50) {
-        const status = AGENT_DONE_RE.test(trimmed) ? 'done' as const
-          : AGENT_INIT_RE.test(trimmed) ? 'running' as const
-          : 'running' as const;
-        store.updateSubAgentInfo(tabId, name, { toolUses, status });
+        const status = AGENT_DONE_RE.test(trimmed) ? 'done' as const : 'running' as const;
+
+        // Parse per-agent tokens: "9.6k tokens"
+        const agentTokenMatch = trimmed.match(TOKENS_RE);
+        let agentTokens = 0;
+        if (agentTokenMatch) {
+          agentTokens = parseFloat(agentTokenMatch[1]);
+          if (agentTokenMatch[1].endsWith('k') || agentTokenMatch[1].endsWith('K')) {
+            agentTokens *= 1000;
+          }
+        }
+
+        store.updateSubAgentInfo(tabId, name, { toolUses, status, tokens: Math.round(agentTokens) });
+      }
+    }
+
+    // "Done" on its own line after a sub-agent → mark last agent as done
+    if (/^\s*[└├]?\s*Done\s*$/.test(trimmed)) {
+      const session = store.claudeSessions.get(tabId);
+      if (session && session.subAgentDetails.length > 0) {
+        const lastRunning = [...session.subAgentDetails].reverse().find((a) => a.status === 'running');
+        if (lastRunning) {
+          store.updateSubAgentInfo(tabId, lastRunning.name, { status: 'done' });
+        }
       }
     }
 
@@ -145,12 +173,19 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     }
   }
 
-  // ─── Token usage ───
-  const tokenMatch = clean.match(TOKENS_RE);
-  if (tokenMatch) {
-    let tokens = parseFloat(tokenMatch[1]);
-    if (tokenMatch[1].endsWith('k')) tokens *= 1000;
-    if (tokens > 0) store.trackOutput(tabId, Math.round(tokens * 3.5));
+  // ─── Session-level token usage (from Claude Code status line) ───
+  const tokenMatches = [...clean.matchAll(/(\d[\d,.]*)\s*[kK]?\s*tokens?/g)];
+  if (tokenMatches.length > 0) {
+    // Take the largest token count as the session total (Claude shows cumulative)
+    let maxTokens = 0;
+    for (const m of tokenMatches) {
+      let t = parseFloat(m[1].replace(/,/g, ''));
+      if (m[0].toLowerCase().includes('k')) t *= 1000;
+      if (t > maxTokens) maxTokens = t;
+    }
+    if (maxTokens > 0) {
+      store.trackOutput(tabId, Math.round(maxTokens));
+    }
   }
 
   // ─── Tool uses ───
