@@ -5,12 +5,10 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { registerFileLinkProvider, FileLinkProvider } from '../addons/file-link-provider';
 import { parseClaudeOutput, onShellPromptDetected, setParserCallback } from '../addons/claude-output-parser';
 import { useFileViewerStore } from '../stores/file-viewer-store';
 import { useTabStore } from '../stores/tab-store';
-import { useDashboardStore } from '../stores/dashboard-store';
 
 interface PtyOutput {
   tab_id: string;
@@ -20,26 +18,7 @@ interface PtyOutput {
 export interface PtyHooks {
   onBeforeInput?: (data: string) => boolean;
   onAfterInput?: (data: string) => void;
-  /** Called when PTY output contains a shell prompt (buffer should reset) */
   onPromptDetected?: () => void;
-}
-
-// Detect common shell prompt endings
-const PROMPT_PATTERNS = [
-  /\$\s*$/,        // bash: user@host:~$
-  /%\s*$/,         // zsh: user@host ~ %
-  />\s*$/,         // fish/powershell: >
-  /[#]\s*$/,       // root: #
-  /❯\s*$/,         // starship/custom
-  /➜\s*$/,         // oh-my-zsh
-];
-
-function looksLikePrompt(text: string): boolean {
-  // Check last line of output (strip ANSI codes)
-  const clean = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-  const lastLine = clean.split('\n').pop()?.trim() || '';
-  if (lastLine.length < 1 || lastLine.length > 200) return false;
-  return PROMPT_PATTERNS.some((p) => p.test(lastLine));
 }
 
 export function usePty(
@@ -73,8 +52,9 @@ export function usePty(
     const tab = useTabStore.getState().tabs.find((t) => t.id === tabId);
     const initialCwd = tab?.cwd || '/';
 
+    // ─── Terminal setup (canvas renderer, no WebGL) ───
     const terminal = new Terminal({
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Apple Color Emoji', 'Segoe UI Emoji', monospace",
+      fontFamily: "'JetBrains Mono', 'Menlo', 'Cascadia Code', monospace",
       fontSize: 14,
       lineHeight: 1.35,
       theme: {
@@ -90,7 +70,6 @@ export function usePty(
         magenta: '#bc8cff',
         cyan: '#39c5cf',
         white: '#e6e6e6',
-        // Bright variants (used by Claude Code for dim lines, bold text, etc.)
         brightBlack: '#484f58',
         brightRed: '#ff7b72',
         brightGreen: '#56d364',
@@ -104,184 +83,113 @@ export function usePty(
       cursorStyle: 'bar',
       scrollback: 10000,
       allowProposedApi: true,
-      // Unicode/TUI support
       drawBoldTextInBrightColors: true,
     });
 
+    // Addons
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
-
-    // Unicode 11 — proper width for CJK, emoji, box-drawing characters
-    const unicode11 = new Unicode11Addon();
-    terminal.loadAddon(unicode11);
+    terminal.loadAddon(new Unicode11Addon());
     terminal.unicode.activeVersion = '11';
+    terminal.loadAddon(new WebLinksAddon((_event, uri) => {
+      invoke('plugin:opener|open_url', { url: uri }).catch(console.error);
+    }));
 
-    terminal.loadAddon(
-      new WebLinksAddon((_event, uri) => {
-        invoke('plugin:opener|open_url', { url: uri }).catch(console.error);
-      })
-    );
-
+    // File link provider
     const { provider: fileProvider, dispose: disposeFileLinks } = registerFileLinkProvider(
-      terminal,
-      initialCwd,
-      (resolvedPath) => {
-        useFileViewerStore.getState().openFile(resolvedPath);
-      },
-      (dirPath) => {
-        // Navigate explorer to clicked directory
-        import('../stores/explorer-store').then(({ useExplorerStore }) => {
-          useExplorerStore.getState().setRootPath(dirPath);
-        });
-      }
+      terminal, initialCwd,
+      (path) => useFileViewerStore.getState().openFile(path),
+      (dir) => import('../stores/explorer-store').then(({ useExplorerStore }) => useExplorerStore.getState().setRootPath(dir))
     );
     fileLinkRef.current = fileProvider;
 
-    // Custom key handling for terminal
+    // ─── Key handling ───
     const isMac = navigator.platform.toUpperCase().includes('MAC');
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true;
-
       const mod = isMac ? event.metaKey : event.ctrlKey;
 
-      // Shift+Enter → newline (works in both shell and TUI like Claude CLI)
+      // Shift+Enter → newline
       if (event.key === 'Enter' && event.shiftKey) {
         event.preventDefault();
         invoke('pty_write', { tabId, data: '\n' }).catch(console.error);
         return false;
       }
 
-      // ─── Readline shortcuts ───
-      // Only in normal buffer AND only when cursor is near bottom (shell prompt).
-      // TUI apps (vim, claude code inline) use the full screen area.
+      // Readline shortcuts only at shell prompt
       const buf = terminal.buffer.active;
-      const isNormalBuffer = buf.type === 'normal';
-      // Heuristic: if cursor is on the last 2 rows of viewport, likely at shell prompt
-      const isAtPrompt = isNormalBuffer && (buf.cursorY >= terminal.rows - 3);
+      if (buf.type !== 'normal') return true;
+      if (buf.cursorY < terminal.rows - 3) return true;
 
-      if (!isNormalBuffer) return true; // Alternate buffer → pass through
-
-      // These readline shortcuts only apply at shell prompt
-      if (isAtPrompt) {
-        if (event.key === 'Home' || (mod && event.key === 'ArrowLeft' && !event.shiftKey)) {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x01' }).catch(console.error);
-          return false;
-        }
-        if (event.key === 'End' || (mod && event.key === 'ArrowRight' && !event.shiftKey)) {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x05' }).catch(console.error);
-          return false;
-        }
-        if (mod && event.key === 'Backspace') {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x15' }).catch(console.error);
-          return false;
-        }
-        if (event.altKey && event.key === 'ArrowLeft') {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x1bb' }).catch(console.error);
-          return false;
-        }
-        if (event.altKey && event.key === 'ArrowRight') {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x1bf' }).catch(console.error);
-          return false;
-        }
-        if (event.altKey && event.key === 'Backspace') {
-          event.preventDefault();
-          invoke('pty_write', { tabId, data: '\x17' }).catch(console.error);
-          return false;
-        }
+      if (event.key === 'Home' || (mod && event.key === 'ArrowLeft' && !event.shiftKey)) {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x01' }).catch(console.error); return false;
       }
-
+      if (event.key === 'End' || (mod && event.key === 'ArrowRight' && !event.shiftKey)) {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x05' }).catch(console.error); return false;
+      }
+      if (mod && event.key === 'Backspace') {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x15' }).catch(console.error); return false;
+      }
+      if (event.altKey && event.key === 'ArrowLeft') {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x1bb' }).catch(console.error); return false;
+      }
+      if (event.altKey && event.key === 'ArrowRight') {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x1bf' }).catch(console.error); return false;
+      }
+      if (event.altKey && event.key === 'Backspace') {
+        event.preventDefault(); invoke('pty_write', { tabId, data: '\x17' }).catch(console.error); return false;
+      }
       return true;
     });
 
+    // ─── Open terminal ───
     terminal.open(containerRef.current);
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // WebGL renderer — GPU-accelerated, pixel-perfect text rendering
-    // Falls back to canvas if WebGL not available
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => {
-        webgl.dispose();
-      });
-      terminal.loadAddon(webgl);
-    } catch {
-      // WebGL not supported, canvas renderer is fine
-    }
-
-    // Multi-stage fit: ensure PTY gets correct size after layout settles
-    // Stage 1: immediate after open
+    // Initial fit (multi-stage for font loading)
     requestAnimationFrame(() => {
       fitAddon.fit();
-      const { cols, rows } = terminal;
-      invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+      invoke('pty_resize', { tabId, cols: terminal.cols, rows: terminal.rows }).catch(() => {});
     });
-    // Stage 2: after 200ms (layout fully settled, fonts loaded)
-    setTimeout(() => debouncedFit(), 200);
-    // Stage 3: after 500ms (WebGL renderer initialized)
-    setTimeout(() => debouncedFit(), 500);
-    // Stage 4: after 1s (final safety net)
+    setTimeout(() => debouncedFit(), 300);
     setTimeout(() => debouncedFit(), 1000);
 
+    // ─── PTY I/O ───
     const onDataDisposable = terminal.onData((data) => {
       const h = hooksRef.current;
-      if (h?.onBeforeInput) {
-        const proceed = h.onBeforeInput(data);
-        if (!proceed) return;
-      }
+      if (h?.onBeforeInput && !h.onBeforeInput(data)) return;
       invoke('pty_write', { tabId, data }).catch(console.error);
-      if (h?.onAfterInput) {
-        h.onAfterInput(data);
-      }
+      h?.onAfterInput?.(data);
     });
 
     let unlistenOutput: UnlistenFn | null = null;
     let unlistenExited: UnlistenFn | null = null;
-
-    // Debounce prompt detection to avoid false positives during fast output
     let promptTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastOutputChunk = '';
     let parseBuffer = '';
     let parseTimer: ReturnType<typeof setTimeout> | null = null;
-    let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // SIGWINCH after streaming: only trigger when output just stopped
-    // No auto-resize — user triggers manually with Cmd+R
-    const scheduleIdleResize = () => { /* disabled */ };
+    let lastChunk = '';
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
         terminal.write(event.payload.data);
-        lastOutputChunk = event.payload.data;
+        lastChunk = event.payload.data;
 
-        // Smart idle resize for Claude Code streaming
-        scheduleIdleResize();
-
-        // Parse Claude Code output — debounced to handle streaming
+        // Debounced parser (300ms batch)
         parseBuffer += event.payload.data;
         if (parseTimer) clearTimeout(parseTimer);
         parseTimer = setTimeout(() => {
-          const prevSz = useDashboardStore.getState().claudeSessions.size;
           parseClaudeOutput(tabId, parseBuffer);
-          const newSz = useDashboardStore.getState().claudeSessions.size;
           parseBuffer = '';
-
-          // New session detected → SIGWINCH after welcome screen
-          if (newSz > prevSz) {
-            // New Claude session — full resize after welcome screen
-            setTimeout(() => scheduleIdleResize(), 1500);
-          }
         }, 300);
 
-        // Debounced prompt detection: if output stops for 100ms and last chunk looks like a prompt
+        // Prompt detection (100ms idle)
         if (promptTimer) clearTimeout(promptTimer);
         promptTimer = setTimeout(() => {
-          if (looksLikePrompt(lastOutputChunk)) {
+          const clean = lastChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+          const lastLine = clean.split('\n').pop()?.trim() || '';
+          if (lastLine.length > 0 && lastLine.length < 200 &&
+              /[$%❯➜#]\s*$/.test(lastLine)) {
             hooksRef.current?.onPromptDetected?.();
             onShellPromptDetected(tabId);
           }
@@ -290,45 +198,28 @@ export function usePty(
 
       unlistenExited = await listen(`pty:exited:${tabId}`, () => {
         terminal.write('\r\n\x1b[90m[Process exited]\x1b[0m\r\n');
-        const store = useTabStore.getState();
-        if (store.activeTabId !== tabId) {
-          store.markCompleted(tabId);
+        if (useTabStore.getState().activeTabId !== tabId) {
+          useTabStore.getState().markCompleted(tabId);
         }
       });
     };
-
     setupListeners();
 
+    // ─── Resize observer ───
     const parentEl = containerRef.current.closest('.terminal-view') || containerRef.current;
     const resizeObserver = new ResizeObserver(() => debouncedFit());
     resizeObserver.observe(parentEl);
 
-    // When Claude state changes (sub-agents start/end), trigger resize only once
-    setParserCallback((changedTabId) => {
-      if (changedTabId === tabId) {
-        setTimeout(() => debouncedFit(), 500);
-      }
+    // Parser state change → fit
+    setParserCallback((id) => {
+      if (id === tabId) setTimeout(() => debouncedFit(), 500);
     });
 
-    // Periodic size check (window resize etc) — only when size actually changes
-    let lastCols = 0, lastRows = 0;
-    const periodicSync = setInterval(() => {
-      if (fitAddonRef.current && terminalRef.current) {
-        fitAddonRef.current.fit();
-        const { cols, rows } = terminalRef.current;
-        if (cols !== lastCols || rows !== lastRows) {
-          lastCols = cols; lastRows = rows;
-          invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-        }
-      }
-    }, 5000);
-
+    // ─── Cleanup ───
     return () => {
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
       if (promptTimer) clearTimeout(promptTimer);
       if (parseTimer) clearTimeout(parseTimer);
-      if (idleResizeTimer) clearTimeout(idleResizeTimer);
-      clearInterval(periodicSync);
       onDataDisposable.dispose();
       disposeFileLinks();
       unlistenOutput?.();
