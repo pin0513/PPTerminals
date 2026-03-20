@@ -53,3 +53,8 @@
   outline: 2px solid #58a6ff;
   outline-offset: -2px;
 }
+
+.native-term-ac {
+  position: absolute;
+  z-index: 100;
+}
