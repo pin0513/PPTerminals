@@ -16,6 +16,12 @@ export interface SessionUsage {
   subAgents: number;
 }
 
+export interface SubAgentInfo {
+  name: string;
+  toolUses: number;
+  status: 'running' | 'done';
+}
+
 export interface ClaudeSession {
   tabId: string;
   model: string;
@@ -23,20 +29,24 @@ export interface ClaudeSession {
   startedAt: number;
   active: boolean;
   subAgents: number;
+  subAgentDetails: SubAgentInfo[];
+  bashCommands: string[]; // recent bash commands
   usage: SessionUsage;
 }
 
 interface DashboardStore {
   sessions: Map<string, SessionUsage>;
-  claudeSessions: Map<string, ClaudeSession>; // only Claude CLI sessions
+  claudeSessions: Map<string, ClaudeSession>;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalRequests: number;
   isOpen: boolean;
 
-  // Claude CLI lifecycle
   startClaudeSession: (tabId: string, model: string, cwd: string) => void;
   endClaudeSession: (tabId: string) => void;
+  setSubAgentCount: (tabId: string, count: number) => void;
+  updateSubAgentInfo: (tabId: string, name: string, info: Partial<SubAgentInfo>) => void;
+  trackBashCommand: (tabId: string, command: string) => void;
 
   trackOutput: (tabId: string, charCount: number) => void;
   trackInput: (tabId: string, charCount: number) => void;
@@ -93,22 +103,58 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
         const claudeSessions = new Map(s.claudeSessions);
         if (!claudeSessions.has(tabId)) {
           claudeSessions.set(tabId, {
-            tabId,
-            model,
-            cwd,
+            tabId, model, cwd,
             startedAt: Date.now(),
             active: true,
             subAgents: 0,
+            subAgentDetails: [],
+            bashCommands: [],
             usage: {
-              tabId,
-              inputTokens: 0,
-              outputTokens: 0,
-              requests: 0,
-              startedAt: Date.now(),
-              lastActivity: Date.now(),
-              subAgents: 0,
+              tabId, inputTokens: 0, outputTokens: 0,
+              requests: 0, startedAt: Date.now(), lastActivity: Date.now(), subAgents: 0,
             },
           });
+        }
+        return { claudeSessions };
+      });
+    },
+
+    setSubAgentCount: (tabId, count) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        const session = claudeSessions.get(tabId);
+        if (session) {
+          claudeSessions.set(tabId, { ...session, subAgents: count });
+        }
+        return { claudeSessions };
+      });
+    },
+
+    updateSubAgentInfo: (tabId, name, info) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        const session = claudeSessions.get(tabId);
+        if (session) {
+          const details = [...session.subAgentDetails];
+          const existing = details.find((d) => d.name === name);
+          if (existing) {
+            Object.assign(existing, info);
+          } else {
+            details.push({ name, toolUses: info.toolUses || 0, status: 'running' });
+          }
+          claudeSessions.set(tabId, { ...session, subAgentDetails: details });
+        }
+        return { claudeSessions };
+      });
+    },
+
+    trackBashCommand: (tabId, command) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        const session = claudeSessions.get(tabId);
+        if (session) {
+          const cmds = [...session.bashCommands, command].slice(-10); // keep last 10
+          claudeSessions.set(tabId, { ...session, bashCommands: cmds });
         }
         return { claudeSessions };
       });

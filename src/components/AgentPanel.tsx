@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useTabStore } from '../stores/tab-store';
 import { useDashboardStore, type ClaudeSession } from '../stores/dashboard-store';
-import { AvatarGroup } from './PixelAvatar';
+import { AvatarGroup, PixelAvatar } from './PixelAvatar';
 import './AgentPanel.css';
 
 export function AgentPanel() {
@@ -10,13 +10,16 @@ export function AgentPanel() {
   const setActiveTab = useTabStore((s) => s.setActiveTab);
   const claudeSessions = useDashboardStore((s) => s.claudeSessions);
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
 
-  const handleClick = useCallback(
-    (tabId: string) => setActiveTab(tabId),
-    [setActiveTab]
-  );
+  const toggleExpand = useCallback((tabId: string) => {
+    setExpandedSessions((prev) => {
+      const next = new Set(prev);
+      next.has(tabId) ? next.delete(tabId) : next.add(tabId);
+      return next;
+    });
+  }, []);
 
-  // Only show tabs that have a Claude session (active or ended)
   const sessionsArray = Array.from(claudeSessions.values());
   const activeSessions = sessionsArray.filter((s) => s.active);
   const endedSessions = sessionsArray.filter((s) => !s.active);
@@ -47,12 +50,14 @@ export function AgentPanel() {
           )}
 
           {activeSessions.map((session) => (
-            <SessionRow
+            <SessionCard
               key={session.tabId}
               session={session}
               title={getTabTitle(session.tabId)}
               isCurrent={session.tabId === activeTabId}
-              onClick={() => handleClick(session.tabId)}
+              isExpanded={expandedSessions.has(session.tabId)}
+              onToggleExpand={() => toggleExpand(session.tabId)}
+              onClick={() => setActiveTab(session.tabId)}
             />
           ))}
 
@@ -61,12 +66,14 @@ export function AgentPanel() {
           )}
 
           {endedSessions.map((session) => (
-            <SessionRow
+            <SessionCard
               key={session.tabId}
               session={session}
               title={getTabTitle(session.tabId)}
               isCurrent={session.tabId === activeTabId}
-              onClick={() => handleClick(session.tabId)}
+              isExpanded={expandedSessions.has(session.tabId)}
+              onToggleExpand={() => toggleExpand(session.tabId)}
+              onClick={() => setActiveTab(session.tabId)}
             />
           ))}
         </div>
@@ -75,44 +82,91 @@ export function AgentPanel() {
   );
 }
 
-function SessionRow({
+function SessionCard({
   session,
   title,
   isCurrent,
+  isExpanded,
+  onToggleExpand,
   onClick,
 }: {
   session: ClaudeSession;
   title: string;
   isCurrent: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
   onClick: () => void;
 }) {
   return (
-    <div
-      className={`agent-row ${session.active ? 'busy' : 'idle'} ${isCurrent ? 'current' : ''}`}
-      onClick={onClick}
-    >
-      <AvatarGroup
-        name={title}
-        subAgentCount={session.subAgents}
-        isActive={session.active}
-      />
-      <div className="agent-info">
-        <span className="agent-name">{title}</span>
-        <span className={`agent-status-text ${session.active ? '' : 'idle-text'}`}>
-          {session.active
-            ? session.subAgents > 0
-              ? `${session.subAgents} agent${session.subAgents > 1 ? 's' : ''} running`
-              : `${session.model} · running`
-            : `${session.model} · exited`}
-        </span>
-        {session.usage.requests > 0 && (
-          <span className="agent-stats">
-            {session.usage.requests} req · {formatTokens(session.usage.outputTokens)} tok
-          </span>
+    <div className={`session-card ${session.active ? 'active' : 'ended'} ${isCurrent ? 'current' : ''}`}>
+      {/* Main row */}
+      <div className="session-card-main" onClick={onClick}>
+        <AvatarGroup name={title} subAgentCount={session.subAgents} isActive={session.active} />
+        <div className="session-card-info">
+          <div className="session-card-title">{title}</div>
+          <div className="session-card-meta">
+            <span className={`session-model ${session.active ? 'glow' : ''}`}>
+              {session.model}
+            </span>
+            {session.active && session.subAgents > 0 && (
+              <span className="session-agents-count">
+                {session.subAgents} agent{session.subAgents > 1 ? 's' : ''}
+              </span>
+            )}
+            {!session.active && <span className="session-ended-badge">exited</span>}
+          </div>
+        </div>
+        {session.active && <LoadingDots />}
+        {/* Expand button */}
+        {(session.subAgentDetails.length > 0 || session.bashCommands.length > 0) && (
+          <button
+            className={`session-expand-btn ${isExpanded ? 'expanded' : ''}`}
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+            title="Show details"
+          >
+            ›
+          </button>
         )}
       </div>
-      {session.active && <LoadingDots />}
-      {!session.active && <CompletedBadge />}
+
+      {/* Expanded details */}
+      {isExpanded && (
+        <div className="session-details">
+          {/* Sub-agents */}
+          {session.subAgentDetails.length > 0 && (
+            <div className="detail-section">
+              <div className="detail-label">Agents</div>
+              {session.subAgentDetails.map((agent, i) => (
+                <div key={i} className="detail-agent-row">
+                  <PixelAvatar name={`${title}-${agent.name}`} size={16} isActive={agent.status === 'running'} />
+                  <span className="detail-agent-name">{agent.name}</span>
+                  <span className="detail-agent-tools">{agent.toolUses} tools</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Bash commands */}
+          {session.bashCommands.length > 0 && (
+            <div className="detail-section">
+              <div className="detail-label">Bash</div>
+              {session.bashCommands.slice(-5).map((cmd, i) => (
+                <div key={i} className="detail-bash-row">
+                  <span className="detail-bash-prompt">$</span>
+                  <span className="detail-bash-cmd">{cmd}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Usage stats */}
+          <div className="detail-section detail-stats">
+            <span>{session.usage.requests} req</span>
+            <span>{formatTokens(session.usage.outputTokens)} out</span>
+            <span>${((session.usage.outputTokens / 1_000_000) * 15).toFixed(3)}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -130,15 +184,5 @@ function LoadingDots() {
       <span className="dot" />
       <span className="dot" />
     </div>
-  );
-}
-
-function CompletedBadge() {
-  return (
-    <span className="completed-badge">
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
-      </svg>
-    </span>
   );
 }

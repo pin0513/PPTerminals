@@ -63,7 +63,7 @@ export function usePty(
           invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
         } catch { /* not ready */ }
       }
-    }, 30);
+    }, 50);
   }, [tabId]);
 
   useEffect(() => {
@@ -215,8 +215,8 @@ export function usePty(
 
     requestAnimationFrame(() => {
       fitAddon.fit();
-      const { cols, rows } = terminal;
-      invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+      // Use debouncedFit to get the accurate pixel-verified cols
+      debouncedFit();
     });
 
     const onDataDisposable = terminal.onData((data) => {
