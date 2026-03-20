@@ -353,19 +353,36 @@ function updateChicken(c: Chicken, all: Map<string, Chicken>) {
   // Chicks follow parent within zone
   if (!c.isHen && c.parentId) {
     const p = all.get(c.parentId);
-    if (p) { c.targetX = p.x + Math.sin(c.frame * 0.05 + c.x) * 12; c.targetY = p.y + 6 + Math.cos(c.frame * 0.03) * 3; }
+    if (p) {
+      c.targetX = p.x + Math.sin(c.frame * 0.04 + c.x * 0.1) * 18;
+      c.targetY = p.y + 8 + Math.cos(c.frame * 0.03 + c.x * 0.05) * 4;
+    }
   }
   if (c.stateTimer <= 0 && c.isHen) {
     const r = Math.random();
-    const range = 30;
-    if (r < 0.5) { c.state = 'walking'; c.targetX = c.zoneX - range + Math.random() * range * 2; c.targetY = GROUND_Y - 8 + Math.random() * 10; c.stateTimer = 60 + Math.random() * 100; }
-    else if (r < 0.75) { c.state = 'pecking'; c.stateTimer = 20 + Math.random() * 30; }
-    else { c.state = 'idle'; c.stateTimer = 30 + Math.random() * 60; }
+    if (r < 0.5) {
+      c.state = 'walking';
+      // Walk across a wider range within the zone
+      c.targetX = c.zoneX - 60 + Math.random() * 120;
+      c.targetY = GROUND_Y - 10 + Math.random() * 12;
+      c.stateTimer = 80 + Math.random() * 150;
+    } else if (r < 0.7) {
+      c.state = 'pecking'; c.stateTimer = 30 + Math.random() * 40;
+    } else {
+      c.state = 'idle'; c.stateTimer = 40 + Math.random() * 60;
+    }
   }
   if (c.state === 'walking' || !c.isHen) {
-    const spd = c.isHen ? 0.4 : 0.7;
-    c.x += (c.targetX - c.x) * 0.02 * spd; c.y += (c.targetY - c.y) * 0.02 * spd;
-    c.direction = (c.targetX - c.x) > 0 ? 'right' : 'left';
+    const dx = c.targetX - c.x;
+    const dy = c.targetY - c.y;
+    // Direct speed instead of exponential decay (won't get stuck)
+    const speed = c.isHen ? 0.4 : 0.6;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 1) {
+      c.x += (dx / dist) * speed;
+      c.y += (dy / dist) * speed;
+    }
+    c.direction = dx > 0 ? 'right' : 'left';
   }
   c.x = Math.max(10, Math.min(FARM_W - 10, c.x));
   c.y = Math.max(GROUND_Y - 12, Math.min(FARM_H - 10, c.y));

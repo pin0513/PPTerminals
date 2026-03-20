@@ -106,6 +106,11 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
 
   if (!state.claudeStarted) return;
 
+  // Debug: log cleaned output chunks that contain interesting keywords
+  if (/[Rr]unning.*agent|[├└]|Agent\(/i.test(clean)) {
+    console.log(`[PPT-DEBUG] Interesting output:`, JSON.stringify(clean.slice(0, 200)));
+  }
+
   // ─── Sub-agents count: "Running 3 agents..." ───
   const runningMatch = clean.match(RUNNING_AGENTS_RE);
   if (runningMatch) {
@@ -113,6 +118,17 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     console.log(`[PPT] Detected ${count} sub-agents for tab ${tabId}`);
     store.setSubAgentCount(tabId, count);
     _onStateChange?.(tabId);
+  }
+
+  // Also detect sub-agents from tree lines even without "Running N" header
+  const treeLines = clean.split('\n').filter((l) => /[├└]/.test(l));
+  if (treeLines.length > 0 && !runningMatch) {
+    const session = store.claudeSessions.get(tabId);
+    if (session && session.subAgents === 0) {
+      console.log(`[PPT] Auto-detected ${treeLines.length} sub-agents from tree lines`);
+      store.setSubAgentCount(tabId, treeLines.length);
+      _onStateChange?.(tabId);
+    }
   }
 
   // ─── Detect agents completed ───
