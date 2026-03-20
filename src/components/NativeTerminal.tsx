@@ -172,7 +172,6 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
 
   // Keyboard input
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const mod = isMac ? e.metaKey : e.ctrlKey;
     let data = '';
 
     // ─── Autocomplete interception ───
@@ -188,23 +187,48 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
       if (e.key === 'Escape') { e.preventDefault(); acRef.current.dismiss(); return; }
     }
 
+    // ─── macOS: Cmd+C = copy, Cmd+A = select all (let browser handle) ───
+    if (isMac && e.metaKey && ['c', 'a', 'x'].includes(e.key)) {
+      return;
+    }
+    // ─── Cmd+V = paste from clipboard into PTY ───
+    if (isMac && e.metaKey && e.key === 'v') {
+      e.preventDefault();
+      navigator.clipboard.readText().then((text) => {
+        if (text) invoke('pty_write', { tabId, data: text }).catch(console.error);
+      }).catch(console.error);
+      return;
+    }
+
+    // ─── Cmd+key shortcuts handled by App.tsx (Cmd+T, Cmd+W, etc.) ───
+    if (isMac && e.metaKey && ['t', 'w', 'b', 'r', '\\', '=', '+', 'Tab'].includes(e.key)) {
+      return; // let it bubble to App.tsx
+    }
+    if (isMac && e.metaKey && e.shiftKey) {
+      return; // Cmd+Shift+letter → tab switch, let bubble
+    }
+
     e.preventDefault();
 
     // ─── Special keys ───
     if (e.key === 'Enter') data = e.shiftKey ? '\n' : '\r';
-    else if (e.key === 'Backspace') data = mod ? '\x15' : e.altKey ? '\x17' : '\x7f';
+    else if (e.key === 'Backspace') {
+      if (isMac ? e.metaKey : e.ctrlKey) data = '\x15'; // Cmd/Ctrl+Backspace → clear line
+      else if (e.altKey) data = '\x17'; // Alt+Backspace → delete word
+      else data = '\x7f';
+    }
     else if (e.key === 'Tab') data = '\t';
     else if (e.key === 'Escape') data = '\x1b';
     else if (e.key === 'ArrowUp') data = '\x1b[A';
     else if (e.key === 'ArrowDown') data = '\x1b[B';
     else if (e.key === 'ArrowRight') {
-      if (mod) data = '\x05';      // Cmd+Right → End of line
-      else if (e.altKey) data = '\x1bf'; // Alt+Right → Word right
+      if (isMac ? e.metaKey : e.ctrlKey) data = '\x05';
+      else if (e.altKey) data = '\x1bf';
       else data = '\x1b[C';
     }
     else if (e.key === 'ArrowLeft') {
-      if (mod) data = '\x01';      // Cmd+Left → Start of line
-      else if (e.altKey) data = '\x1bb'; // Alt+Left → Word left
+      if (isMac ? e.metaKey : e.ctrlKey) data = '\x01';
+      else if (e.altKey) data = '\x1bb';
       else data = '\x1b[D';
     }
     else if (e.key === 'Home') data = '\x01';
@@ -212,12 +236,12 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
     else if (e.key === 'Delete') data = '\x1b[3~';
     else if (e.key === 'PageUp') data = '\x1b[5~';
     else if (e.key === 'PageDown') data = '\x1b[6~';
-    // Ctrl+letter
-    else if (mod && e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
+    // Ctrl+letter → terminal control codes (Ctrl+C = \x03, Ctrl+D = \x04, etc.)
+    else if (e.ctrlKey && e.key.length === 1 && e.key >= 'a' && e.key <= 'z') {
       data = String.fromCharCode(e.key.charCodeAt(0) - 96);
     }
     // Regular printable
-    else if (e.key.length === 1) {
+    else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
       data = e.key;
     }
 
