@@ -251,28 +251,35 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // SIGWINCH after streaming: only trigger when output just stopped
-    // Full resize pipeline: xterm resize + PTY resize, same as manual window drag.
-    // Does cols→cols-1→cols in one tick — xterm reflows buffer, PTY sends SIGWINCH.
+    // Smooth redraw: freeze display → resize → wait for redraw → unfreeze.
+    // Uses CSS opacity transition to hide the resize flicker.
     const scheduleIdleResize = () => {
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
         const hasSession = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (hasSession && terminalRef.current && fitAddonRef.current) {
-          // Full resize: same path as manual window resize
-          fitAddonRef.current.fit();
-          const { cols, rows } = terminalRef.current;
-          // Bounce: shrink 1 col, then restore — triggers full reflow
-          terminalRef.current.resize(Math.max(1, cols - 1), rows);
-          invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-          // Restore immediately (next frame)
-          requestAnimationFrame(() => {
-            if (terminalRef.current) {
-              terminalRef.current.resize(cols, rows);
-              invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-            }
-          });
-        }
-      }, 500);
+        if (!hasSession || !terminalRef.current || !fitAddonRef.current) return;
+
+        const el = terminalRef.current.element;
+        if (!el) return;
+
+        const { cols, rows } = terminalRef.current;
+
+        // Freeze: keep current frame visible
+        el.style.transition = 'none';
+        el.style.opacity = '1';
+
+        // Do the resize in background
+        terminalRef.current.resize(Math.max(1, cols - 1), rows);
+        invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+
+        // After Claude redraws (50ms), restore and fade in smoothly
+        setTimeout(() => {
+          if (terminalRef.current) {
+            terminalRef.current.resize(cols, rows);
+            invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+          }
+        }, 50);
+      }, 1000);
     };
 
     const setupListeners = async () => {
