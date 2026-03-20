@@ -49,6 +49,7 @@ interface DashboardStore {
   updateSubAgentInfo: (tabId: string, name: string, info: Partial<SubAgentInfo>) => void;
   trackBashCommand: (tabId: string, command: string) => void;
 
+  setSessionTokens: (tabId: string, tokens: number) => void;
   trackOutput: (tabId: string, charCount: number) => void;
   trackInput: (tabId: string, charCount: number) => void;
   trackRequest: (tabId: string) => void;
@@ -169,6 +170,19 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
         const session = claudeSessions.get(tabId);
         if (session) {
           claudeSessions.set(tabId, { ...session, active: false, subAgents: 0 });
+        }
+        return { claudeSessions };
+      });
+    },
+
+    setSessionTokens: (tabId, tokens) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        const cs = claudeSessions.get(tabId);
+        if (cs) {
+          cs.usage.outputTokens = tokens;
+          cs.usage.lastActivity = Date.now();
+          claudeSessions.set(tabId, { ...cs });
         }
         return { claudeSessions };
       });

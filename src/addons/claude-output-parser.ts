@@ -41,6 +41,8 @@ const AGENT_NAME_RE = /Agent\s*\(([^)]+)\)/;
 const BASH_TOOL_RE = /(?:Bash|bash|Read|Write|Edit|Glob|Grep)[:\s]+(.{3,80})/;
 const TOOL_USES_RE = /(\d+)\s+tool\s+uses?/;
 const TOKENS_RE = /([\d.]+)\s*[kK]?\s*tokens?/;
+// Claude Code status line: "↓ 448 tokens" or "↓ 13.2k tokens"
+const STATUS_TOKENS_RE = /[↓↑]\s*([\d,.]+)\s*[kK]?\s*tokens?/;
 
 // Per-tab state
 const tabState = new Map<string, {
@@ -203,18 +205,15 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
     }
   }
 
-  // ─── Session-level token usage (from Claude Code status line) ───
-  const tokenMatches = [...clean.matchAll(/(\d[\d,.]*)\s*[kK]?\s*tokens?/g)];
-  if (tokenMatches.length > 0) {
-    // Take the largest token count as the session total (Claude shows cumulative)
-    let maxTokens = 0;
-    for (const m of tokenMatches) {
-      let t = parseFloat(m[1].replace(/,/g, ''));
-      if (m[0].toLowerCase().includes('k')) t *= 1000;
-      if (t > maxTokens) maxTokens = t;
-    }
-    if (maxTokens > 0) {
-      store.trackOutput(tabId, Math.round(maxTokens));
+  // ─── Accurate token tracking from Claude Code status line ───
+  // "Composing... (37s · ↓ 448 tokens)" or "↓ 13.2k tokens"
+  const statusMatch = clean.match(STATUS_TOKENS_RE);
+  if (statusMatch) {
+    let tokens = parseFloat(statusMatch[1].replace(/,/g, ''));
+    if (statusMatch[0].toLowerCase().includes('k')) tokens *= 1000;
+    if (tokens > 0) {
+      // Set the REAL token count directly on the Claude session
+      store.setSessionTokens(tabId, Math.round(tokens));
     }
   }
 
