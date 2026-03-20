@@ -26,6 +26,13 @@ interface ScreenState {
   row_count: number;
 }
 
+interface ScreenDiff {
+  changed_rows: [number, TermCell[]][];
+  cursor_row: number;
+  cursor_col: number;
+  cursor_visible: boolean;
+}
+
 interface Props {
   tabId: string;
   isVisible: boolean;
@@ -105,15 +112,43 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
           }
         }, 300);
 
-        // Debounce screen refresh (50ms)
+        // Debounce screen refresh — use diff for partial update (30ms)
         if (refreshTimer.current) return;
         refreshTimer.current = setTimeout(async () => {
           refreshTimer.current = null;
           try {
-            const state = await invoke<ScreenState>('native_term_screen', { tabId });
-            setScreen(state);
+            const diff = await invoke<ScreenDiff>('native_term_diff', { tabId });
+            if (diff.changed_rows.length > 0) {
+              setScreen((prev) => {
+                if (!prev) {
+                  // First time — do full fetch
+                  invoke<ScreenState>('native_term_screen', { tabId }).then(setScreen).catch(() => {});
+                  return prev;
+                }
+                // Apply diff: only update changed rows
+                const newRows = [...prev.rows];
+                for (const [rowIdx, cells] of diff.changed_rows) {
+                  newRows[rowIdx] = cells;
+                }
+                return {
+                  ...prev,
+                  rows: newRows,
+                  cursor_row: diff.cursor_row,
+                  cursor_col: diff.cursor_col,
+                  cursor_visible: diff.cursor_visible,
+                };
+              });
+            } else {
+              // Only cursor moved
+              setScreen((prev) => prev ? {
+                ...prev,
+                cursor_row: diff.cursor_row,
+                cursor_col: diff.cursor_col,
+                cursor_visible: diff.cursor_visible,
+              } : prev);
+            }
           } catch { /* ignore */ }
-        }, 50);
+        }, 30);
       });
 
       unlistenExited = await listen(`pty:exited:${tabId}`, () => {

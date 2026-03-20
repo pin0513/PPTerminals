@@ -60,14 +60,25 @@ fn color_to_css(color: vt100::Color, is_fg: bool) -> String {
     }
 }
 
+/// Tracks which rows changed since last screen fetch
+#[derive(Serialize, Clone, Debug)]
+pub struct ScreenDiff {
+    pub changed_rows: Vec<(u16, Vec<TermCell>)>, // (row_index, cells)
+    pub cursor_row: u16,
+    pub cursor_col: u16,
+    pub cursor_visible: bool,
+}
+
 pub struct NativeTermManager {
     parsers: Mutex<HashMap<String, vt100::Parser>>,
+    prev_screens: Mutex<HashMap<String, Vec<Vec<String>>>>, // row → cell contents for diff
 }
 
 impl NativeTermManager {
     pub fn new() -> Self {
         Self {
             parsers: Mutex::new(HashMap::new()),
+            prev_screens: Mutex::new(HashMap::new()),
         }
     }
 
@@ -143,7 +154,83 @@ impl NativeTermManager {
         })
     }
 
+    /// Get only the rows that changed since last call
+    pub fn get_screen_diff(&self, tab_id: &str) -> Option<ScreenDiff> {
+        let parsers = self.parsers.lock();
+        let parser = parsers.get(tab_id)?;
+        let screen = parser.screen();
+        let cols = screen.size().1;
+        let row_count = screen.size().0;
+
+        let mut prev_screens = self.prev_screens.lock();
+        let prev = prev_screens.entry(tab_id.to_string()).or_insert_with(Vec::new);
+
+        let mut changed_rows = Vec::new();
+
+        for r in 0..row_count {
+            let mut row_hash = Vec::with_capacity(cols as usize);
+            let mut row_cells = Vec::with_capacity(cols as usize);
+
+            for c in 0..cols {
+                let cell = screen.cell(r, c);
+                let (ch, fg, bg, bold, italic, underline, dim) = match cell {
+                    Some(cell) => {
+                        let ch = cell.contents();
+                        (
+                            if ch.is_empty() { " " } else { ch },
+                            color_to_css(cell.fgcolor(), true),
+                            color_to_css(cell.bgcolor(), false),
+                            cell.bold(),
+                            cell.italic(),
+                            cell.underline(),
+                            cell.dim(),
+                        )
+                    }
+                    None => (" ", "#e6e6e6".to_string(), "transparent".to_string(), false, false, false, false),
+                };
+
+                // Simple hash for diff: content + fg color
+                row_hash.push(format!("{}|{}", ch, fg));
+                row_cells.push(TermCell {
+                    ch: ch.to_string(),
+                    fg, bg, bold, italic, underline, dim,
+                });
+            }
+
+            // Compare with previous
+            let row_idx = r as usize;
+            let changed = if row_idx >= prev.len() {
+                true
+            } else {
+                prev[row_idx] != row_hash
+            };
+
+            if changed {
+                changed_rows.push((r, row_cells));
+            }
+
+            // Update prev
+            if row_idx >= prev.len() {
+                prev.push(row_hash);
+            } else {
+                prev[row_idx] = row_hash;
+            }
+        }
+
+        // Trim prev if screen shrank
+        prev.truncate(row_count as usize);
+
+        let cursor = screen.cursor_position();
+        Some(ScreenDiff {
+            changed_rows,
+            cursor_row: cursor.0,
+            cursor_col: cursor.1,
+            cursor_visible: !screen.hide_cursor(),
+        })
+    }
+
     pub fn remove(&self, tab_id: &str) {
         self.parsers.lock().remove(tab_id);
+        self.prev_screens.lock().remove(tab_id);
     }
 }

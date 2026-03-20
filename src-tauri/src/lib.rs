@@ -2,7 +2,7 @@ mod fs_commands;
 mod native_term;
 mod pty_manager;
 
-use native_term::{NativeTermManager, ScreenState};
+use native_term::{NativeTermManager, ScreenState, ScreenDiff};
 use pty_manager::PtyManager;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -305,6 +305,14 @@ async fn native_term_resize(
 }
 
 #[tauri::command]
+async fn native_term_diff(
+    state: State<'_, AppState>,
+    tab_id: String,
+) -> Result<ScreenDiff, String> {
+    state.native_term.get_screen_diff(&tab_id).ok_or_else(|| "No terminal found".to_string())
+}
+
+#[tauri::command]
 async fn native_term_screen(
     state: State<'_, AppState>,
     tab_id: String,
@@ -392,6 +400,7 @@ pub fn run() {
             native_term_create,
             native_term_resize,
             native_term_screen,
+            native_term_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
