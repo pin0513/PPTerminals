@@ -251,25 +251,29 @@ export function usePty(
     let idleResizeTimer: ReturnType<typeof setTimeout> | null = null;
     let outputBurstCount = 0;
 
-    // Smart resize: when streaming output stops for 800ms, trigger a
-    // micro-resize (cols-1 → cols) to force Claude Code to clean-redraw.
-    // Only triggers if there was a significant burst of output (>20 chunks).
+    // Smart resize: after any streaming pause (400ms no output), trigger
+    // micro-resize to clean up TUI rendering artifacts.
+    // Only when Claude session is active and output had cursor movement chars.
+    let lastOutputHadCursor = false;
+
     const scheduleIdleResize = () => {
       outputBurstCount++;
+      // Check if this chunk contains cursor movement (TUI redraw indicator)
+      if (lastOutputChunk.includes('\r') || lastOutputChunk.includes('\x1b[')) {
+        lastOutputHadCursor = true;
+      }
+
       if (idleResizeTimer) clearTimeout(idleResizeTimer);
       idleResizeTimer = setTimeout(() => {
-        // Output has been idle for 800ms after a burst
         const hasClaudeSession = useDashboardStore.getState().claudeSessions.has(tabId);
-        if (hasClaudeSession && outputBurstCount > 20 && terminalRef.current) {
+        if (hasClaudeSession && lastOutputHadCursor && outputBurstCount > 5 && terminalRef.current) {
           const { cols, rows } = terminalRef.current;
-          // Micro-resize: cols-1 then restore — triggers SIGWINCH for clean redraw
           invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-          setTimeout(() => {
-            invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-          }, 80);
+          setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 50);
         }
         outputBurstCount = 0;
-      }, 800);
+        lastOutputHadCursor = false;
+      }, 400);
     };
 
     const setupListeners = async () => {
