@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useTabStore } from '../stores/tab-store';
 import { useDashboardStore, type ClaudeSession } from '../stores/dashboard-store';
 import { AvatarGroup, PixelAvatar } from './PixelAvatar';
+import { PixelFarm } from './PixelFarm';
 import './AgentPanel.css';
 
 export function AgentPanel() {
@@ -30,11 +31,22 @@ export function AgentPanel() {
     return tab ? `${tab.hotkey} ${tab.title}` : tabId.slice(0, 8);
   };
 
+  const [showFarm, setShowFarm] = useState(false);
+
   return (
     <div className="agent-panel">
       <div className="agent-panel-header" onClick={() => setCollapsed(!collapsed)}>
         <span className={`agent-chevron ${collapsed ? '' : 'expanded'}`}>›</span>
         <span className="agent-panel-title">Claude Sessions</span>
+        {sessionsArray.length > 0 && (
+          <button
+            className="farm-btn"
+            onClick={(e) => { e.stopPropagation(); setShowFarm(true); }}
+            title="Open Agent Farm"
+          >
+            🐔
+          </button>
+        )}
         {activeSessions.length > 0 && (
           <span className="agent-busy-badge">
             {activeSessions.length} active
@@ -44,7 +56,10 @@ export function AgentPanel() {
       </div>
 
       {!collapsed && (
-        <div className="agent-panel-body">
+        <div
+          className="agent-panel-body"
+          onClick={() => { if (sessionsArray.length > 0) setShowFarm(true); }}
+        >
           {sessionsArray.length === 0 && (
             <div className="agent-empty">No Claude sessions</div>
           )}
@@ -78,6 +93,7 @@ export function AgentPanel() {
           ))}
         </div>
       )}
+      {showFarm && <PixelFarm onClose={() => setShowFarm(false)} />}
     </div>
   );
 }

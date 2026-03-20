@@ -54,12 +54,22 @@ export function TerminalView({ tabId, isVisible }: Props) {
     }
   });
 
+  // Re-fit when tab becomes visible — multi-stage to ensure accuracy
   useEffect(() => {
-    if (isVisible && fitAddonRef.current) {
-      const timer = setTimeout(() => fitAddonRef.current?.fit(), 50);
-      return () => clearTimeout(timer);
+    if (isVisible && fitAddonRef.current && terminalRef.current) {
+      const fit = () => {
+        fitAddonRef.current?.fit();
+        if (terminalRef.current) {
+          const { cols, rows } = terminalRef.current;
+          invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+        }
+      };
+      // Immediate + delayed to catch layout shifts
+      const t1 = setTimeout(fit, 50);
+      const t2 = setTimeout(fit, 300);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
-  }, [isVisible, fitAddonRef]);
+  }, [isVisible, fitAddonRef, terminalRef, tabId]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();

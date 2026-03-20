@@ -1,0 +1,64 @@
+.pixel-farm {
+  position: fixed;
+  z-index: 3000;
+  background: #0d1117;
+  border: 2px solid #30363d;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 30px rgba(63, 185, 80, 0.08);
+  animation: farm-pop 0.2s ease-out;
+}
+
+@keyframes farm-pop {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.pixel-farm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  cursor: grab;
+  user-select: none;
+}
+
+.pixel-farm-header:active {
+  cursor: grabbing;
+}
+
+.pixel-farm-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e6edf3;
+  flex: 1;
+}
+
+.pixel-farm-count {
+  font-size: 10px;
+  color: #3fb950;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pixel-farm-close {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.pixel-farm-close:hover {
+  background: #21262d;
+  color: #e6edf3;
+}
+
+.pixel-farm-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

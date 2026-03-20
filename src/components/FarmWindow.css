@@ -1,0 +1,54 @@
+.farm-window {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0a0e14;
+  overflow: hidden;
+}
+
+.farm-window-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e6edf3;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.farm-window-stats {
+  flex: 1;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 400;
+  color: #3fb950;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.farm-window-close {
+  background: none;
+  border: none;
+  color: #8b949e;
+  font-size: 18px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.farm-window-close:hover {
+  background: #21262d;
+  color: #e6edf3;
+}
+
+.farm-window-canvas {
+  flex: 1;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

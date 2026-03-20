@@ -10,6 +10,7 @@ import { registerFileLinkProvider, FileLinkProvider } from '../addons/file-link-
 import { parseClaudeOutput, onShellPromptDetected } from '../addons/claude-output-parser';
 import { useFileViewerStore } from '../stores/file-viewer-store';
 import { useTabStore } from '../stores/tab-store';
+import { useDashboardStore } from '../stores/dashboard-store';
 
 interface PtyOutput {
   tab_id: string;
@@ -213,11 +214,19 @@ export function usePty(
       // WebGL not supported, canvas renderer is fine
     }
 
+    // Multi-stage fit: ensure PTY gets correct size after layout settles
+    // Stage 1: immediate after open
     requestAnimationFrame(() => {
       fitAddon.fit();
-      // Use debouncedFit to get the accurate pixel-verified cols
-      debouncedFit();
+      const { cols, rows } = terminal;
+      invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
     });
+    // Stage 2: after 200ms (layout fully settled, fonts loaded)
+    setTimeout(() => debouncedFit(), 200);
+    // Stage 3: after 500ms (WebGL renderer initialized)
+    setTimeout(() => debouncedFit(), 500);
+    // Stage 4: after 1s (final safety net)
+    setTimeout(() => debouncedFit(), 1000);
 
     const onDataDisposable = terminal.onData((data) => {
       const h = hooksRef.current;
@@ -244,7 +253,25 @@ export function usePty(
         lastOutputChunk = event.payload.data;
 
         // Parse Claude Code output for agent/token tracking
+        const prevSessions = useDashboardStore.getState().claudeSessions.size;
         parseClaudeOutput(tabId, event.payload.data);
+        const newSessions = useDashboardStore.getState().claudeSessions.size;
+
+        // When Claude Code is detected starting → force a SIGWINCH after it finishes initial render
+        // This makes Claude Code re-query terminal size and fully redraw
+        if (newSessions > prevSessions) {
+          setTimeout(() => {
+            if (fitAddonRef.current && terminalRef.current) {
+              fitAddonRef.current.fit();
+              const { cols, rows } = terminalRef.current;
+              // Send cols-1 then cols back to trigger SIGWINCH redraw
+              invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+              setTimeout(() => {
+                invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+              }, 100);
+            }
+          }, 1500); // Wait 1.5s for Claude Code to finish welcome screen
+        }
 
         // Debounced prompt detection: if output stops for 100ms and last chunk looks like a prompt
         if (promptTimer) clearTimeout(promptTimer);
@@ -271,9 +298,31 @@ export function usePty(
     const resizeObserver = new ResizeObserver(() => debouncedFit());
     resizeObserver.observe(parentEl);
 
+    // Periodic size sync: while Claude CLI is active, re-fit every 3s
+    // This catches any drift between xterm rendering and PTY size
+    let lastSyncedCols = 0;
+    let lastSyncedRows = 0;
+    const periodicSync = setInterval(() => {
+      const claudeActive = useDashboardStore.getState().claudeSessions;
+      const hasActive = Array.from(claudeActive.values()).some(
+        (s) => s.tabId === tabId && s.active
+      );
+      if (hasActive && fitAddonRef.current && terminalRef.current) {
+        fitAddonRef.current.fit();
+        const { cols, rows } = terminalRef.current;
+        // Only send resize if size actually changed
+        if (cols !== lastSyncedCols || rows !== lastSyncedRows) {
+          lastSyncedCols = cols;
+          lastSyncedRows = rows;
+          invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
+        }
+      }
+    }, 3000);
+
     return () => {
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
       if (promptTimer) clearTimeout(promptTimer);
+      clearInterval(periodicSync);
       onDataDisposable.dispose();
       disposeFileLinks();
       unlistenOutput?.();

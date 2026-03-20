@@ -1,7 +1,15 @@
 import { useDashboardStore } from '../stores/dashboard-store';
 
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  return text
+    // CSI sequences: ESC [ ... (letter) — covers colors, cursor, scroll, etc.
+    .replace(/\x1b\[[\x20-\x3f]*[\x30-\x7e]/g, '')
+    // OSC sequences: ESC ] ... ST
+    .replace(/\x1b\].*?(?:\x07|\x1b\\)/g, '')
+    // Other ESC sequences: ESC (letter)
+    .replace(/\x1b[^[\]]/g, '')
+    // Remaining control chars except newline/tab
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
 }
 
 // ─── Detection Patterns (multiple for resilience against chunk splitting) ───
@@ -25,15 +33,15 @@ const CLAUDE_EXIT_PATTERNS = [
   /Ctrl-C\s+again\s+to\s+exit/,
 ];
 
-// Sub-agent patterns
+// Sub-agent patterns (handle both ... and … ellipsis)
 const RUNNING_AGENTS_RE = /Running\s+(\d+)\s+agents?/;
-const AGENT_TREE_LINE_RE = /[├└]─\s+(.+?)(?:\s+·\s+(\d+)\s+tool|\s*$)/;
-const AGENT_DONE_RE = /[└├].*Done/;
-const AGENT_INIT_RE = /Initializing/;
-const AGENT_NAME_RE = /Agent\(([^)]+)\)/;
-const BASH_TOOL_RE = /Bash[:\s]+(.{5,80})/;
+const AGENT_TREE_LINE_RE = /[├└][─┬]\s*(.+?)(?:\s+[·•]\s*(\d+)\s+tool|\s*$)/;
+const AGENT_DONE_RE = /Done/i;
+const AGENT_INIT_RE = /Initializ/i;
+const AGENT_NAME_RE = /Agent\s*\(([^)]+)\)/;
+const BASH_TOOL_RE = /(?:Bash|bash|Read|Write|Edit|Glob|Grep)[:\s]+(.{3,80})/;
 const TOOL_USES_RE = /(\d+)\s+tool\s+uses?/;
-const TOKENS_RE = /([\d.]+k?)\s+tokens?/;
+const TOKENS_RE = /([\d.]+)\s*[kK]?\s*tokens?/;
 
 // Per-tab state
 const tabState = new Map<string, {
@@ -68,6 +76,7 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
       state.lastModel = model;
       store.startClaudeSession(tabId, model, '');
       state.recentOutput = '';
+      console.log(`[PPT] Claude session started: ${model} (tab ${tabId})`);
     }
   }
 
@@ -86,7 +95,25 @@ export function parseClaudeOutput(tabId: string, rawData: string): void {
   // ─── Sub-agents count: "Running 3 agents..." ───
   const runningMatch = clean.match(RUNNING_AGENTS_RE);
   if (runningMatch) {
-    store.setSubAgentCount(tabId, parseInt(runningMatch[1], 10));
+    const count = parseInt(runningMatch[1], 10);
+    console.log(`[PPT] Detected ${count} sub-agents for tab ${tabId}`);
+    store.setSubAgentCount(tabId, count);
+  }
+
+  // ─── Detect agents completed: Claude Code shows `>` prompt again ───
+  // When we see the `>` prompt and sub-agents were running, they're done
+  const session = store.claudeSessions.get(tabId);
+  if (session && session.subAgents > 0) {
+    // Claude Code's input prompt: `❯` or `>` at start of a line
+    const hasPrompt = /^[❯>]\s/m.test(clean);
+    if (hasPrompt) {
+      console.log(`[PPT] Sub-agents completed for tab ${tabId}`);
+      store.setSubAgentCount(tabId, 0);
+      // Mark all sub-agent details as done
+      session.subAgentDetails.forEach((a) => {
+        store.updateSubAgentInfo(tabId, a.name, { status: 'done' });
+      });
+    }
   }
 
   // ─── Agent tree lines: "├─ 查台北今天天氣 · 0 tool uses" ───
