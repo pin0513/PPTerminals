@@ -233,11 +233,15 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
     if (isVisible && inputRef.current) inputRef.current.focus();
   }, [isVisible]);
 
-  // Drag & drop
+  // Drag & drop — insert full path into terminal
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setIsDragOver(false);
-    const path = e.dataTransfer.getData('application/x-ppterminals-path') || e.dataTransfer.getData('text/plain');
-    if (path) invoke('pty_write', { tabId, data: path.includes(' ') ? `"${path}"` : path }).catch(console.error);
+    const rawPath = e.dataTransfer.getData('application/x-ppterminals-path') || e.dataTransfer.getData('text/plain');
+    if (rawPath) {
+      const escaped = rawPath.includes(' ') ? `"${rawPath}"` : rawPath;
+      // Write path with trailing space for convenience
+      invoke('pty_write', { tabId, data: escaped + ' ' }).catch(console.error);
+    }
   }, [tabId]);
 
   return (
