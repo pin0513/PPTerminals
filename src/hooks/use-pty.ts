@@ -246,32 +246,34 @@ export function usePty(
     // Debounce prompt detection to avoid false positives during fast output
     let promptTimer: ReturnType<typeof setTimeout> | null = null;
     let lastOutputChunk = '';
+    let parseBuffer = '';
+    let parseTimer: ReturnType<typeof setTimeout> | null = null;
 
     const setupListeners = async () => {
       unlistenOutput = await listen<PtyOutput>(`pty:output:${tabId}`, (event) => {
         terminal.write(event.payload.data);
         lastOutputChunk = event.payload.data;
 
-        // Parse Claude Code output for agent/token tracking
-        const prevSessions = useDashboardStore.getState().claudeSessions.size;
-        parseClaudeOutput(tabId, event.payload.data);
-        const newSessions = useDashboardStore.getState().claudeSessions.size;
+        // Parse Claude Code output — debounced to handle streaming
+        parseBuffer += event.payload.data;
+        if (parseTimer) clearTimeout(parseTimer);
+        parseTimer = setTimeout(() => {
+          const prevSz = useDashboardStore.getState().claudeSessions.size;
+          parseClaudeOutput(tabId, parseBuffer);
+          const newSz = useDashboardStore.getState().claudeSessions.size;
+          parseBuffer = '';
 
-        // When Claude Code is detected starting → force a SIGWINCH after it finishes initial render
-        // This makes Claude Code re-query terminal size and fully redraw
-        if (newSessions > prevSessions) {
-          setTimeout(() => {
-            if (fitAddonRef.current && terminalRef.current) {
-              fitAddonRef.current.fit();
-              const { cols, rows } = terminalRef.current;
-              // Send cols-1 then cols back to trigger SIGWINCH redraw
-              invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
-              setTimeout(() => {
-                invoke('pty_resize', { tabId, cols, rows }).catch(() => {});
-              }, 100);
-            }
-          }, 1500); // Wait 1.5s for Claude Code to finish welcome screen
-        }
+          if (newSz > prevSz) {
+            setTimeout(() => {
+              if (fitAddonRef.current && terminalRef.current) {
+                fitAddonRef.current.fit();
+                const { cols, rows } = terminalRef.current;
+                invoke('pty_resize', { tabId, cols: Math.max(1, cols - 1), rows }).catch(() => {});
+                setTimeout(() => invoke('pty_resize', { tabId, cols, rows }).catch(() => {}), 100);
+              }
+            }, 1500);
+          }
+        }, 300); // Batch 300ms of streaming output
 
         // Debounced prompt detection: if output stops for 100ms and last chunk looks like a prompt
         if (promptTimer) clearTimeout(promptTimer);
@@ -323,6 +325,7 @@ export function usePty(
     return () => {
       if (fitTimeoutRef.current) clearTimeout(fitTimeoutRef.current);
       if (promptTimer) clearTimeout(promptTimer);
+      if (parseTimer) clearTimeout(parseTimer);
       clearInterval(periodicSync);
       onDataDisposable.dispose();
       disposeFileLinks();
