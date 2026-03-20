@@ -182,6 +182,17 @@
   color: #484f58;
 }
 
+.agent-stats {
+  font-size: 9px;
+  color: #484f58;
+}
+
+.agent-divider {
+  height: 1px;
+  background: #21262d;
+  margin: 4px 10px;
+}
+
 /* ─── Loading Dots ─── */
 .loading-dots {
   display: flex;

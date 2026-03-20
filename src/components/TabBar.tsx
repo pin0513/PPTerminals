@@ -13,6 +13,7 @@ export function TabBar() {
     confirmCloseTab,
     cancelCloseTab,
     createTab,
+    createClaudeTab,
     renameTab,
   } = useTabStore();
 
@@ -96,8 +97,17 @@ export function TabBar() {
             </div>
           ))}
         </div>
-        <button className="tab-new" onClick={() => createTab()} title="New tab (Cmd+T)">
+        <button className="tab-new" onClick={() => createTab()} title="New Terminal (Cmd+T)">
           +
+        </button>
+        <button
+          className="tab-new tab-claude"
+          onClick={() => createClaudeTab()}
+          title="New Claude Session"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zM6.5 5a1 1 0 100 2 1 1 0 000-2zm3 0a1 1 0 100 2 1 1 0 000-2zM5 9.5a.5.5 0 01.5-.5h5a.5.5 0 010 1h-5a.5.5 0 01-.5-.5z" />
+          </svg>
         </button>
       </div>
 

@@ -164,3 +164,12 @@
   background: #1e2a3a;
   color: #e6e6e6;
 }
+
+.tab-claude {
+  color: #f0883e;
+}
+
+.tab-claude:hover {
+  background: #2a1e0e;
+  color: #f0883e;
+}

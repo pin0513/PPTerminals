@@ -326,6 +326,12 @@ function TreeItem({
     closeMenu();
   };
 
+  const handleOpenClaudeHere = () => {
+    const dirPath = node.is_dir ? node.path : node.path.substring(0, node.path.lastIndexOf('/'));
+    useTabStore.getState().createClaudeTab(dirPath);
+    closeMenu();
+  };
+
   const handleNewFolderHere = () => {
     const parentDir = node.is_dir ? node.path : node.path.substring(0, node.path.lastIndexOf('/'));
     if (node.is_dir && !node.isExpanded) {
@@ -421,6 +427,7 @@ function TreeItem({
           onNavigateHere={handleNavigateHere}
           onNewFile={handleNewFileHere}
           onNewFolder={handleNewFolderHere}
+          onOpenClaude={handleOpenClaudeHere}
         />
       )}
     </>
@@ -439,6 +446,7 @@ interface ContextMenuProps {
   onNavigateHere: () => void;
   onNewFile: () => void;
   onNewFolder: () => void;
+  onOpenClaude: () => void;
 }
 
 function ContextMenu({
@@ -451,6 +459,7 @@ function ContextMenu({
   onNavigateHere,
   onNewFile,
   onNewFolder,
+  onOpenClaude,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -477,6 +486,10 @@ function ContextMenu({
       className="explorer-context-menu"
       style={{ top: y, left: x }}
     >
+      <button className="context-claude" onClick={onOpenClaude}>
+        Open Claude Here
+      </button>
+      <div className="context-menu-divider" />
       <button onClick={onCopyPath}>Copy Path</button>
       <button onClick={onOpenInTerminal}>Open in Terminal</button>
       {isDir && <button onClick={onNavigateHere}>Navigate Here</button>}

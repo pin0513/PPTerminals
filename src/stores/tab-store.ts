@@ -20,6 +20,7 @@ interface TabStore {
   activeTabId: string | null;
   pendingCloseTabId: string | null;
   createTab: (cwd?: string) => Promise<void>;
+  createClaudeTab: (cwd?: string) => Promise<void>;
   closeTab: (id: string) => Promise<void>;
   requestCloseTab: (id: string) => void;
   confirmCloseTab: () => void;
@@ -73,6 +74,8 @@ function saveTabs(tabs: Tab[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+let _restoring = false;
+
 export const useTabStore = create<TabStore>((set, get) => ({
   tabs: [],
   activeTabId: null,
@@ -94,6 +97,31 @@ export const useTabStore = create<TabStore>((set, get) => ({
       activeTabId: result.tab_id,
     }));
     get().saveTabs();
+  },
+
+  createClaudeTab: async (cwd?: string) => {
+    const result = await invoke<PtyCreateResult>('pty_create', { cwd: cwd ?? null });
+    const currentTabs = get().tabs;
+    const newTab: Tab = {
+      id: result.tab_id,
+      title: 'Claude',
+      cwd: result.cwd,
+      isActive: false,
+      hotkey: nextHotkey(currentTabs),
+      completed: false,
+    };
+    set((state) => ({
+      tabs: [...state.tabs, newTab],
+      activeTabId: result.tab_id,
+    }));
+    get().saveTabs();
+    // Auto-launch Claude CLI after a short delay for PTY to be ready
+    setTimeout(() => {
+      invoke('pty_write', {
+        tabId: result.tab_id,
+        data: 'claude --dangerously-skip-permissions\n',
+      }).catch(console.error);
+    }, 300);
   },
 
   closeTab: async (id: string) => {
@@ -173,37 +201,60 @@ export const useTabStore = create<TabStore>((set, get) => ({
   },
 
   restoreTabs: async () => {
+    // Guard: prevent double-mount in React StrictMode (async race)
+    if (_restoring || get().tabs.length > 0) return;
+    _restoring = true;
+
     const saved = loadSavedTabs();
+
     if (saved.length === 0) {
-      // No saved tabs, create default
+      // First launch — just one tab
       await get().createTab();
       return;
     }
-    // Restore each saved tab
-    for (const s of saved) {
+
+    // Deduplicate by cwd
+    const seenCwd = new Set<string>();
+    const deduped = saved.filter((s) => {
+      if (seenCwd.has(s.cwd)) return false;
+      seenCwd.add(s.cwd);
+      return true;
+    });
+
+    // Assign unique hotkeys
+    const usedHotkeys = new Set<string>();
+    const fixed = deduped.map((s) => {
+      let hotkey = s.hotkey;
+      if (!hotkey || usedHotkeys.has(hotkey)) {
+        for (const letter of HOTKEY_LETTERS) {
+          if (!usedHotkeys.has(letter)) { hotkey = letter; break; }
+        }
+      }
+      usedHotkeys.add(hotkey);
+      return { ...s, hotkey };
+    });
+
+    for (const s of fixed) {
       try {
         const result = await invoke<PtyCreateResult>('pty_create', { cwd: s.cwd });
-        const currentTabs = get().tabs;
-        const newTab: Tab = {
-          id: result.tab_id,
-          title: s.title || dirName(result.cwd),
-          cwd: result.cwd,
-          isActive: false,
-          hotkey: s.hotkey || nextHotkey(currentTabs),
-          completed: false,
-        };
         set((state) => ({
-          tabs: [...state.tabs, newTab],
+          tabs: [...state.tabs, {
+            id: result.tab_id,
+            title: s.title || dirName(result.cwd),
+            cwd: result.cwd,
+            isActive: false,
+            hotkey: s.hotkey,
+            completed: false,
+          }],
           activeTabId: state.activeTabId ?? result.tab_id,
         }));
-      } catch {
-        // Skip failed tabs
-      }
+      } catch { /* skip */ }
     }
-    // If all failed, create default
+
     if (get().tabs.length === 0) {
       await get().createTab();
     }
+    get().saveTabs();
   },
 
   saveTabs: () => {

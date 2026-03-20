@@ -4,7 +4,10 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { registerFileLinkProvider, FileLinkProvider } from '../addons/file-link-provider';
+import { parseClaudeOutput, onShellPromptDetected } from '../addons/claude-output-parser';
 import { useFileViewerStore } from '../stores/file-viewer-store';
 import { useTabStore } from '../stores/tab-store';
 
@@ -71,8 +74,8 @@ export function usePty(
 
     const terminal = new Terminal({
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace",
-      fontSize: 13,
-      lineHeight: 1.2,
+      fontSize: 14,
+      lineHeight: 1.35,
       theme: {
         background: '#0a0e14',
         foreground: '#e6e6e6',
@@ -86,6 +89,15 @@ export function usePty(
         magenta: '#bc8cff',
         cyan: '#39c5cf',
         white: '#e6e6e6',
+        // Bright variants (used by Claude Code for dim lines, bold text, etc.)
+        brightBlack: '#484f58',
+        brightRed: '#ff7b72',
+        brightGreen: '#56d364',
+        brightYellow: '#e3b341',
+        brightBlue: '#79c0ff',
+        brightMagenta: '#d2a8ff',
+        brightCyan: '#56d4dd',
+        brightWhite: '#ffffff',
       },
       cursorBlink: true,
       cursorStyle: 'bar',
@@ -93,11 +105,16 @@ export function usePty(
       allowProposedApi: true,
       // Unicode/TUI support
       drawBoldTextInBrightColors: true,
-      minimumContrastRatio: 1,
     });
 
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+
+    // Unicode 11 — proper width for CJK, emoji, box-drawing characters
+    const unicode11 = new Unicode11Addon();
+    terminal.loadAddon(unicode11);
+    terminal.unicode.activeVersion = '11';
+
     terminal.loadAddon(
       new WebLinksAddon((_event, uri) => {
         invoke('plugin:opener|open_url', { url: uri }).catch(console.error);
@@ -119,20 +136,82 @@ export function usePty(
     );
     fileLinkRef.current = fileProvider;
 
-    // Shift+Enter → send newline (\n) instead of carriage return (\r)
-    // This enables multi-line input in Claude CLI and similar tools
+    // Custom key handling for terminal
+    const isMac = navigator.platform.toUpperCase().includes('MAC');
     terminal.attachCustomKeyEventHandler((event) => {
-      if (event.type === 'keydown' && event.key === 'Enter' && event.shiftKey) {
+      if (event.type !== 'keydown') return true;
+
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+
+      // Shift+Enter → newline (works in both shell and TUI like Claude CLI)
+      if (event.key === 'Enter' && event.shiftKey) {
         event.preventDefault();
         invoke('pty_write', { tabId, data: '\n' }).catch(console.error);
         return false;
       }
+
+      // ─── Readline shortcuts ───
+      // Only in normal buffer AND only when cursor is near bottom (shell prompt).
+      // TUI apps (vim, claude code inline) use the full screen area.
+      const buf = terminal.buffer.active;
+      const isNormalBuffer = buf.type === 'normal';
+      // Heuristic: if cursor is on the last 2 rows of viewport, likely at shell prompt
+      const isAtPrompt = isNormalBuffer && (buf.cursorY >= terminal.rows - 3);
+
+      if (!isNormalBuffer) return true; // Alternate buffer → pass through
+
+      // These readline shortcuts only apply at shell prompt
+      if (isAtPrompt) {
+        if (event.key === 'Home' || (mod && event.key === 'ArrowLeft' && !event.shiftKey)) {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x01' }).catch(console.error);
+          return false;
+        }
+        if (event.key === 'End' || (mod && event.key === 'ArrowRight' && !event.shiftKey)) {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x05' }).catch(console.error);
+          return false;
+        }
+        if (mod && event.key === 'Backspace') {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x15' }).catch(console.error);
+          return false;
+        }
+        if (event.altKey && event.key === 'ArrowLeft') {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x1bb' }).catch(console.error);
+          return false;
+        }
+        if (event.altKey && event.key === 'ArrowRight') {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x1bf' }).catch(console.error);
+          return false;
+        }
+        if (event.altKey && event.key === 'Backspace') {
+          event.preventDefault();
+          invoke('pty_write', { tabId, data: '\x17' }).catch(console.error);
+          return false;
+        }
+      }
+
       return true;
     });
 
     terminal.open(containerRef.current);
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+
+    // WebGL renderer — GPU-accelerated, pixel-perfect text rendering
+    // Falls back to canvas if WebGL not available
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => {
+        webgl.dispose();
+      });
+      terminal.loadAddon(webgl);
+    } catch {
+      // WebGL not supported, canvas renderer is fine
+    }
 
     requestAnimationFrame(() => {
       fitAddon.fit();
@@ -164,11 +243,15 @@ export function usePty(
         terminal.write(event.payload.data);
         lastOutputChunk = event.payload.data;
 
+        // Parse Claude Code output for agent/token tracking
+        parseClaudeOutput(tabId, event.payload.data);
+
         // Debounced prompt detection: if output stops for 100ms and last chunk looks like a prompt
         if (promptTimer) clearTimeout(promptTimer);
         promptTimer = setTimeout(() => {
           if (looksLikePrompt(lastOutputChunk)) {
             hooksRef.current?.onPromptDetected?.();
+            onShellPromptDetected(tabId);
           }
         }, 100);
       });

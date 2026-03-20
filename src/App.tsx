@@ -103,6 +103,18 @@ function App() {
         backtickPressed.current = false;
       }
 
+      // Cmd+Shift+Letter — switch to tab by hotkey
+      if (e[modKey] && e.shiftKey) {
+        const letter = e.key.toUpperCase();
+        if (letter >= 'A' && letter <= 'Z') {
+          e.preventDefault();
+          const currentTabs = useTabStore.getState().tabs;
+          const tab = currentTabs.find((t) => t.hotkey === letter);
+          if (tab) setActiveTab(tab.id);
+          return;
+        }
+      }
+
       // Cmd/Ctrl shortcuts
       if (e[modKey]) {
         if (e.key === 't') {
@@ -126,6 +138,10 @@ function App() {
               : (currentIdx + 1) % tabs.length;
             setActiveTab(tabs[nextIdx].id);
           }
+        } else if (e.key === '=' || e.key === '+') {
+          // Cmd+= or Cmd++ → Tab grid switcher
+          e.preventDefault();
+          setShowSwitcher((prev) => !prev);
         } else if (e.key >= '1' && e.key <= '9') {
           e.preventDefault();
           const idx = parseInt(e.key) - 1;

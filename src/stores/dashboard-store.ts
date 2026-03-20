@@ -13,15 +13,30 @@ export interface SessionUsage {
   requests: number;
   startedAt: number;
   lastActivity: number;
-  subAgents: number; // count of active sub-agents
+  subAgents: number;
+}
+
+export interface ClaudeSession {
+  tabId: string;
+  model: string;
+  cwd: string;
+  startedAt: number;
+  active: boolean;
+  subAgents: number;
+  usage: SessionUsage;
 }
 
 interface DashboardStore {
   sessions: Map<string, SessionUsage>;
+  claudeSessions: Map<string, ClaudeSession>; // only Claude CLI sessions
   totalInputTokens: number;
   totalOutputTokens: number;
   totalRequests: number;
   isOpen: boolean;
+
+  // Claude CLI lifecycle
+  startClaudeSession: (tabId: string, model: string, cwd: string) => void;
+  endClaudeSession: (tabId: string) => void;
 
   trackOutput: (tabId: string, charCount: number) => void;
   trackInput: (tabId: string, charCount: number) => void;
@@ -67,10 +82,48 @@ export const useDashboardStore = create<DashboardStore>((set, get) => {
   const saved = loadUsage();
   return {
     sessions: new Map(),
+    claudeSessions: new Map(),
     totalInputTokens: saved.totalInput,
     totalOutputTokens: saved.totalOutput,
     totalRequests: saved.totalReqs,
     isOpen: false,
+
+    startClaudeSession: (tabId, model, cwd) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        if (!claudeSessions.has(tabId)) {
+          claudeSessions.set(tabId, {
+            tabId,
+            model,
+            cwd,
+            startedAt: Date.now(),
+            active: true,
+            subAgents: 0,
+            usage: {
+              tabId,
+              inputTokens: 0,
+              outputTokens: 0,
+              requests: 0,
+              startedAt: Date.now(),
+              lastActivity: Date.now(),
+              subAgents: 0,
+            },
+          });
+        }
+        return { claudeSessions };
+      });
+    },
+
+    endClaudeSession: (tabId) => {
+      set((s) => {
+        const claudeSessions = new Map(s.claudeSessions);
+        const session = claudeSessions.get(tabId);
+        if (session) {
+          claudeSessions.set(tabId, { ...session, active: false, subAgents: 0 });
+        }
+        return { claudeSessions };
+      });
+    },
 
     trackOutput: (tabId, charCount) => {
       const tokens = charsToTokens(charCount);

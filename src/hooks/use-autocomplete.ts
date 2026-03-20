@@ -74,9 +74,10 @@ async function getPathCommands(): Promise<string[]> {
  *   irb>                   (Ruby REPL)
  */
 
-// Shell prompt: must have path-like or user@host context before the prompt char
-const SHELL_PROMPT_RE = /(?:[$%]|❯|➜)\s*$/;
-const SHELL_CONTEXT_RE = /(?:[@~\/]|:\s)/; // must have @ or ~ or / or : somewhere before prompt
+// Shell prompt: find prompt char ($, %, ❯, ➜) that has shell context before it
+// The prompt char is NOT at end of line — user's input follows it
+const SHELL_PROMPT_CHAR_RE = /[$%❯➜#]\s+/g;
+const SHELL_CONTEXT_RE = /[@~\/]/; // must have @ or ~ or / somewhere before prompt char
 
 function readCurrentInput(term: Terminal): string {
   const buf = term.buffer.active;
@@ -91,16 +92,23 @@ function readCurrentInput(term: Terminal): string {
   text = text.trimEnd();
   if (!text) return '';
 
-  // Find prompt ending
-  const match = text.match(SHELL_PROMPT_RE);
-  if (!match || match.index === undefined) return '';
+  // Find the LAST prompt char that has shell context before it
+  // e.g. "paul_huang@A2 ~ % claude --da" → finds "%" → returns "claude --da"
+  SHELL_PROMPT_CHAR_RE.lastIndex = 0;
+  let bestMatch: { index: number; length: number } | null = null;
 
-  // Check that the part BEFORE the prompt char looks like a shell prompt
-  // (has user@host, path, or directory context)
-  const prefix = text.slice(0, match.index);
-  if (!SHELL_CONTEXT_RE.test(prefix)) return '';
+  let m: RegExpExecArray | null;
+  while ((m = SHELL_PROMPT_CHAR_RE.exec(text)) !== null) {
+    const prefix = text.slice(0, m.index);
+    if (SHELL_CONTEXT_RE.test(prefix)) {
+      bestMatch = { index: m.index, length: m[0].length };
+    }
+  }
 
-  return text.slice(match.index + match[0].length);
+  if (!bestMatch) return '';
+
+  const input = text.slice(bestMatch.index + bestMatch.length);
+  return input;
 }
 
 export function useAutocomplete(tabId: string) {

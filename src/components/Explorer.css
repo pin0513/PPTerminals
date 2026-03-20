@@ -223,6 +223,15 @@
   background: #264f78;
 }
 
+.context-claude {
+  color: #f0883e !important;
+  font-weight: 600;
+}
+
+.context-claude:hover {
+  background: #2a1e0e !important;
+}
+
 .context-menu-divider {
   height: 1px;
   background: #30363d;
