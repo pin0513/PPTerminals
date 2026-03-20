@@ -68,12 +68,20 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
     };
   }, []);
 
-  // Create native term
+  // Create native term + initial screen fetch
   useEffect(() => {
     if (!tabId) return;
     const { cols, rows } = getTermSize();
     invoke('native_term_create', { tabId, cols, rows }).catch(console.error);
     invoke('pty_resize', { tabId, cols, rows }).catch(console.error);
+    // Fetch initial screen after PTY has time to produce output
+    const t1 = setTimeout(async () => {
+      try { setScreen(await invoke<ScreenState>('native_term_screen', { tabId })); } catch {}
+    }, 300);
+    const t2 = setTimeout(async () => {
+      try { setScreen(await invoke<ScreenState>('native_term_screen', { tabId })); } catch {}
+    }, 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [tabId, getTermSize]);
 
   // Resize observer
@@ -115,7 +123,7 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
         }, 300);
 
         // Debounce screen refresh — use diff for partial update (30ms)
-        if (refreshTimer.current) return;
+        if (refreshTimer.current) clearTimeout(refreshTimer.current);
         refreshTimer.current = setTimeout(async () => {
           refreshTimer.current = null;
           try {
@@ -123,9 +131,9 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
             if (diff.changed_rows.length > 0) {
               setScreen((prev) => {
                 if (!prev) {
-                  // First time — do full fetch
-                  invoke<ScreenState>('native_term_screen', { tabId }).then(setScreen).catch(() => {});
-                  return prev;
+                  // First time — do full fetch and return null (will be set async)
+                  invoke<ScreenState>('native_term_screen', { tabId }).then((s) => setScreen(s)).catch(() => {});
+                  return null;
                 }
                 // Apply diff: only update changed rows
                 const newRows = [...prev.rows];
@@ -247,11 +255,11 @@ export function NativeTerminal({ tabId, isVisible }: Props) {
     }
 
     if (data) {
-      invoke('pty_write', { tabId, data }).catch(console.error);
+      console.log(`[KEY] Sending: "${data.replace(/[\x00-\x1f]/g, c => '\\x' + c.charCodeAt(0).toString(16).padStart(2,'0'))}" (key=${e.key})`);
+      invoke('pty_write', { tabId, data }).catch((err) => console.error('[KEY] pty_write failed:', err));
       acRef.current.handleInput(data);
-    } else {
-      // Debug: log unhandled keys
-      console.log(`[KEY] Unhandled: key=${e.key} code=${e.code} ctrl=${e.ctrlKey} meta=${e.metaKey} alt=${e.altKey} shift=${e.shiftKey}`);
+    } else if (!['Alt', 'Control', 'Meta', 'Shift', 'F12'].includes(e.key)) {
+      console.log(`[KEY] Unhandled: key=${e.key} code=${e.code} ctrl=${e.ctrlKey} meta=${e.metaKey}`);
     }
   }, [tabId, isMac]);
 
